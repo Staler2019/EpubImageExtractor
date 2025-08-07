@@ -136,6 +136,7 @@ class HomeScreen extends HookConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
+        // Button to extract images from the selected EPUB file
         ElevatedButton.icon(
           icon: const Icon(Icons.image_search),
           label: const Text('Extract Images'),
@@ -143,11 +144,33 @@ class HomeScreen extends HookConsumerWidget {
             ? () => extractImages(ref)
             : null,
         ),
+        // Button to save all extracted images at once
+        // Shows a snackbar with the output path when successful
         ElevatedButton.icon(
           icon: const Icon(Icons.save_alt),
-          label: const Text('Save Images'),
+          label: const Text('Save All Images'),
           onPressed: canSave 
-            ? () => saveImages(ref)
+            ? () async {
+                // Call the saveImages function from the provider
+                await saveImages(ref);
+                
+                // Get the updated extraction state
+                final result = ref.read(extractionStateProvider);
+                
+                // Show success message with the output path
+                if (result?.isSuccess == true && result?.outputPath != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('All images saved to ${result!.outputPath}'),
+                      duration: const Duration(seconds: 5),
+                      action: SnackBarAction(
+                        label: 'OK',
+                        onPressed: () {},
+                      ),
+                    ),
+                  );
+                }
+              }
             : null,
         ),
       ],

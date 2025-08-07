@@ -55,15 +55,16 @@ class EpubRepository {
           final name = key.split('/').last;
           final mimeType = _getMimeType(name);
           
-          // Create a dummy image for testing
-          // In a real implementation, we would extract the actual image data
-          final dummyData = Uint8List.fromList([1, 2, 3, 4]);
+          // Extract the actual image data from the EPUB file
+          // Convert the image content to Uint8List format for display and saving
+          // This replaces the dummy data that was previously used
+          final imageData = Uint8List.fromList(value.Content!);
           
           images.add(BookImage(
             id: key,
             name: name,
             mimeType: mimeType,
-            data: dummyData,
+            data: imageData,
           ));
         });
       }
@@ -87,16 +88,57 @@ class EpubRepository {
       final documentsDir = await getApplicationDocumentsDirectory();
       
       // Create a directory for the book
-      final sanitizedTitle = bookTitle.replaceAll(RegExp(r'[^\w\s]+'), '_');
-      final outputDir = Directory('${documentsDir.path}/EpubImages/$sanitizedTitle');
+      // More aggressive sanitization to handle special characters and ensure valid directory names
+      final sanitizedTitle = bookTitle
+          .replaceAll(RegExp(r'[^\w\s]+'), '_')
+          .replaceAll(RegExp(r'\s+'), '_')
+          .trim()
+          .replaceAll(RegExp(r'_+'), '_');
       
-      if (!await outputDir.exists()) {
-        await outputDir.create(recursive: true);
+      // If the sanitized title is empty or still problematic, use a default name
+      final dirName = sanitizedTitle.isEmpty ? 'Untitled_Book' : sanitizedTitle;
+      
+      // Create the base directory first
+      final baseDir = Directory(path.join(documentsDir.path, 'EpubImages'));
+      if (!await baseDir.exists()) {
+        try {
+          await baseDir.create(recursive: true);
+        } catch (e) {
+          print('Warning: Failed to create base directory: $e');
+          // Try again with a different approach
+          await Directory(documentsDir.path).create(recursive: true);
+          await baseDir.create();
+        }
       }
       
+      // Now create the book-specific directory
+      final outputDir = Directory(path.join(baseDir.path, dirName));
+      if (!await outputDir.exists()) {
+        try {
+          await outputDir.create(recursive: true);
+        } catch (e) {
+          print('Warning: Failed to create book directory: $e');
+          // Try again with a simpler name
+          final fallbackDir = Directory(path.join(baseDir.path, 'Book_${DateTime.now().millisecondsSinceEpoch}'));
+          await fallbackDir.create();
+          return await _saveImagesToDirectory(images, fallbackDir);
+        }
+      }
+      
+      return await _saveImagesToDirectory(images, outputDir);
+    } catch (e) {
+      return ExtractionResult.failure(
+        message: 'Failed to save images: $e',
+      );
+    }
+  }
+  
+  /// Helper method to save images to a directory
+  Future<ExtractionResult> _saveImagesToDirectory(List<BookImage> images, Directory outputDir) async {
+    try {
       // Save each image
       for (final image in images) {
-        final imagePath = '${outputDir.path}/${image.name}';
+        final imagePath = path.join(outputDir.path, image.name);
         await File(imagePath).writeAsBytes(image.data);
       }
       
@@ -107,7 +149,7 @@ class EpubRepository {
       );
     } catch (e) {
       return ExtractionResult.failure(
-        message: 'Failed to save images: $e',
+        message: 'Failed to save images to directory: $e',
       );
     }
   }

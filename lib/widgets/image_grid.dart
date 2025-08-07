@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 
 import '../models/book_model.dart';
 
@@ -112,6 +116,12 @@ class ImageGrid extends StatelessWidget {
                           Text('Size: ${_formatFileSize(image.data.length)}'),
                           const SizedBox(height: 8),
                           Text('ID: ${image.id}'),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.save_alt),
+                            label: const Text('Save Image'),
+                            onPressed: () => _saveImage(context, image),
+                          ),
                         ],
                       ),
                     ),
@@ -132,6 +142,54 @@ class ImageGrid extends StatelessWidget {
       return '${(bytes / 1024).toStringAsFixed(1)} KB';
     } else {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+  }
+  
+  /// Saves an individual image to the device
+  /// 
+  /// This method saves a single image to the device's documents directory
+  /// in a folder called EpubImages/SavedImages and shows a success or error message.
+  void _saveImage(BuildContext context, BookImage image) async {
+    try {
+      // Get the documents directory
+      final documentsDir = await getApplicationDocumentsDirectory();
+      
+      // Create a directory for saved images
+      final outputDir = Directory(path.join(documentsDir.path, 'EpubImages', 'SavedImages'));
+      
+      if (!await outputDir.exists()) {
+        await outputDir.create(recursive: true);
+      }
+      
+      // Save the image
+      final imagePath = path.join(outputDir.path, image.name);
+      final imageFile = File(imagePath);
+      await imageFile.writeAsBytes(image.data);
+      
+      // Show success message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Image saved to $imagePath'),
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'OK',
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save image: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 }
