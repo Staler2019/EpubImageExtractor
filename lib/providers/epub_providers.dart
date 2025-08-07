@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -51,7 +52,9 @@ Future<void> selectEpub(WidgetRef ref) async {
     }
   } catch (e) {
     // Handle error
-    print('Error selecting EPUB: $e');
+    if (kDebugMode) {
+      print('Error selecting EPUB: $e');
+    }
   }
 }
 
@@ -82,7 +85,9 @@ Future<void> extractImages(WidgetRef ref) async {
 }
 
 /// Function to save extracted images
-Future<void> saveImages(WidgetRef ref) async {
+/// If [directoryPath] is provided, images will be saved to that directory
+/// Otherwise, a directory picker will be shown to let the user choose
+Future<void> saveImages(WidgetRef ref, {String? directoryPath}) async {
   try {
     final extractionState = ref.read(extractionStateProvider);
     final bookModel = ref.read(selectedEpubProvider);
@@ -95,9 +100,24 @@ Future<void> saveImages(WidgetRef ref) async {
       throw Exception('No EPUB book selected');
     }
     
-    // Save images
+    // If no directory path is provided, show directory picker
+    String? selectedDirectoryPath = directoryPath;
+    if (selectedDirectoryPath == null) {
+      final result = await FilePicker.platform.getDirectoryPath();
+      if (result == null) {
+        // User canceled the picker
+        return;
+      }
+      selectedDirectoryPath = result;
+    }
+
+    // Save images to the selected directory
     final repository = ref.read(epubRepositoryProvider);
-    final result = await repository.saveImages(extractionState.images!, bookModel.title);
+    final result = await repository.saveImages(
+      extractionState.images!,
+      bookModel.title,
+      customDirectoryPath: selectedDirectoryPath,
+    );
     
     // Update extraction state
     ref.read(extractionStateProvider.notifier).state = result;

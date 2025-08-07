@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:epub_parser/epub_parser.dart' as epub;
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
@@ -82,49 +82,65 @@ class EpubRepository {
   }
 
   /// Saves extracted images to the device
-  Future<ExtractionResult> saveImages(List<BookImage> images, String bookTitle) async {
+  /// If [customDirectoryPath] is provided, images will be saved to that directory
+  /// Otherwise, they will be saved to the application documents directory
+  Future<ExtractionResult> saveImages(List<BookImage> images, String bookTitle, {String? customDirectoryPath}) async {
     try {
-      // Get the documents directory
-      final documentsDir = await getApplicationDocumentsDirectory();
-      
       // Create a directory for the book
-      // More aggressive sanitization to handle special characters and ensure valid directory names
+      // Sanitize the title to create a valid directory name while preserving non-ASCII characters
       final sanitizedTitle = bookTitle
-          .replaceAll(RegExp(r'[^\w\s]+'), '_')
-          .replaceAll(RegExp(r'\s+'), '_')
-          .trim()
-          .replaceAll(RegExp(r'_+'), '_');
-      
+          .replaceAll(RegExp(r'[\\/:*?"<>|]+'), '_') // Replace only invalid file system characters
+          .trim();
+          // .replaceAll(RegExp(r'\s+'), '_');           // Replace spaces with underscores
+    
       // If the sanitized title is empty or still problematic, use a default name
       final dirName = sanitizedTitle.isEmpty ? 'Untitled_Book' : sanitizedTitle;
+    
+      Directory outputDir;
+    
+      if (customDirectoryPath != null) {
+        // Use the custom directory path if provided
+        outputDir = Directory(path.join(customDirectoryPath, dirName));
+      } else {
+        // Otherwise use the default application documents directory
+        final documentsDir = await getApplicationDocumentsDirectory();
       
-      // Create the base directory first
-      final baseDir = Directory(path.join(documentsDir.path, 'EpubImages'));
-      if (!await baseDir.exists()) {
-        try {
-          await baseDir.create(recursive: true);
-        } catch (e) {
-          print('Warning: Failed to create base directory: $e');
-          // Try again with a different approach
-          await Directory(documentsDir.path).create(recursive: true);
-          await baseDir.create();
+        // Create the base directory first
+        final baseDir = Directory(path.join(documentsDir.path, 'EpubImages'));
+        if (!await baseDir.exists()) {
+          try {
+            await baseDir.create(recursive: true);
+          } catch (e) {
+            if (kDebugMode) {
+              print('Warning: Failed to create base directory: $e');
+            }
+            // Try again with a different approach
+            await Directory(documentsDir.path).create(recursive: true);
+            await baseDir.create();
+          }
         }
-      }
       
-      // Now create the book-specific directory
-      final outputDir = Directory(path.join(baseDir.path, dirName));
+        outputDir = Directory(path.join(baseDir.path, dirName));
+      }
+    
+      // Create the output directory if it doesn't exist
       if (!await outputDir.exists()) {
         try {
           await outputDir.create(recursive: true);
         } catch (e) {
-          print('Warning: Failed to create book directory: $e');
+          if (kDebugMode) {
+            print('Warning: Failed to create book directory: $e');
+          }
           // Try again with a simpler name
-          final fallbackDir = Directory(path.join(baseDir.path, 'Book_${DateTime.now().millisecondsSinceEpoch}'));
-          await fallbackDir.create();
+          final fallbackDir = Directory(path.join(
+            customDirectoryPath ?? (await getApplicationDocumentsDirectory()).path,
+            'Book_${DateTime.now().millisecondsSinceEpoch}'
+          ));
+          await fallbackDir.create(recursive: true);
           return await _saveImagesToDirectory(images, fallbackDir);
         }
       }
-      
+    
       return await _saveImagesToDirectory(images, outputDir);
     } catch (e) {
       return ExtractionResult.failure(

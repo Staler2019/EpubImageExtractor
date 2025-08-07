@@ -45,7 +45,7 @@ class HomeScreen extends HookConsumerWidget {
             if (extractionState != null)
               ExtractionStatusWidget(
                 extractionState: extractionState,
-                isExtracting: extractionState?.isInProgress ?? false,
+                isExtracting: extractionState.isInProgress,
                 isSaving: false,
               ),
             
@@ -145,18 +145,19 @@ class HomeScreen extends HookConsumerWidget {
             : null,
         ),
         // Button to save all extracted images at once
-        // Shows a snackbar with the output path when successful
+        // Shows a directory picker and then a snackbar with the output path when successful
         ElevatedButton.icon(
           icon: const Icon(Icons.save_alt),
           label: const Text('Save All Images'),
           onPressed: canSave 
             ? () async {
                 // Call the saveImages function from the provider
+                // This will show a directory picker dialog
                 await saveImages(ref);
-                
+                    
                 // Get the updated extraction state
                 final result = ref.read(extractionStateProvider);
-                
+                    
                 // Show success message with the output path
                 if (result?.isSuccess == true && result?.outputPath != null) {
                   ScaffoldMessenger.of(context).showSnackBar(
