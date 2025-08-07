@@ -42,7 +42,7 @@ dependencies:
   epub_parser: ^3.0.0
   
   # File handling
-  file_picker: ^6.1.1
+  file_picker: ^10.0.0
   path_provider: ^2.1.2
   path: ^1.8.3
   
