@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mockito/mockito.dart';
 import 'dart:typed_data';
 
 import 'package:epud_image_extractor/models/book_model.dart';
@@ -8,8 +7,8 @@ import 'package:epud_image_extractor/models/extraction_result.dart';
 import 'package:epud_image_extractor/providers/epub_providers.dart';
 import 'package:epud_image_extractor/repositories/epub_repository.dart';
 
-// Mock EpubRepository
-class MockEpubRepository extends Mock implements EpubRepository {
+// Simple test implementation of EpubRepository
+class TestEpubRepository implements EpubRepository {
   @override
   Future<BookModel> parseEpub(String filePath) async {
     return BookModel(
@@ -35,26 +34,36 @@ class MockEpubRepository extends Mock implements EpubRepository {
   }
   
   @override
-  Future<ExtractionResult> saveImages(List<BookImage> images, String bookTitle) async {
+  Future<ExtractionResult> saveImages(
+    List<BookImage> images, 
+    String bookTitle, 
+    {String? customDirectoryPath}
+  ) async {
     return ExtractionResult.success(
       images: images,
-      outputPath: '/test/path',
+      outputPath: customDirectoryPath ?? '/test/path',
       message: 'Saved ${images.length} images',
     );
   }
+  
+  // We need to implement these methods because they're part of the interface,
+  // but we can make them throw since they're private in the original class
+  // and shouldn't be called directly in tests
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
   late ProviderContainer container;
-  late MockEpubRepository mockRepository;
+  late TestEpubRepository testRepository;
   
   setUp(() {
-    mockRepository = MockEpubRepository();
+    testRepository = TestEpubRepository();
     
-    // Override the repository provider with our mock
+    // Override the repository provider with our test implementation
     container = ProviderContainer(
       overrides: [
-        epubRepositoryProvider.overrideWithValue(mockRepository),
+        epubRepositoryProvider.overrideWithValue(testRepository),
       ],
     );
   });

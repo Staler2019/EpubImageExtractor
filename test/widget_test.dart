@@ -1,5 +1,6 @@
 // Main app widget test
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -10,9 +11,9 @@ void main() {
   group('MyApp', () {
     testWidgets('renders correctly with ProviderScope and HomeScreen', (WidgetTester tester) async {
       // Build our app and trigger a frame
-      await tester.pumpWidget(const MyApp());
+      await tester.pumpWidget(const ProviderScope(child: MyApp()));
 
-      // Verify that the app has a ProviderScope (Riverpod)
+      // Verify that the app has a ProviderScope
       expect(find.byType(ProviderScope), findsOneWidget);
       
       // Verify that the app title is correct

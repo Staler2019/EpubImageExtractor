@@ -41,7 +41,7 @@ void main() {
     testWidgets('shows success message when extraction is successful', (WidgetTester tester) async {
       final extractionResult = ExtractionResult.success(
         images: [],
-        message: 'Successfully extracted 5 images',
+        message: 'Successfully extracted 0 images',
       );
       
       await tester.pumpWidget(
@@ -55,7 +55,7 @@ void main() {
       );
       
       // Verify success message is shown
-      expect(find.text('Successfully extracted 5 images'), findsOneWidget);
+      expect(find.text('Successfully extracted 0 images'), findsOneWidget);
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
     });
     
