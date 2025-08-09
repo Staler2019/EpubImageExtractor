@@ -1,10 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
 import '../models/book_model.dart';
+import '../services/directory_selector.dart';
 
 /// Widget that displays a grid of extracted images
 class ImageGrid extends StatelessWidget {
@@ -14,11 +15,15 @@ class ImageGrid extends StatelessWidget {
   /// The number of columns in the grid
   final int crossAxisCount;
 
+  /// Selector to choose directory when saving images
+  final DirectorySelector directorySelector;
+
   /// Creates a new ImageGrid instance
   const ImageGrid({
     super.key,
     required this.images,
     this.crossAxisCount = 3,
+    this.directorySelector = const FilePickerDirectorySelector(),
   });
 
   @override
@@ -147,26 +152,79 @@ class ImageGrid extends StatelessWidget {
   
   /// Saves an individual image to the device
   /// 
-  /// This method saves a single image to the device's documents directory
-  /// in a folder called EpubImages/SavedImages and shows a success or error message.
+  /// This method now lets the user choose a directory to save into.
+  /// If the user cancels, nothing happens.
   void _saveImage(BuildContext context, BookImage image) async {
+    // Step 1: Let user select a directory
+    String? dirPath;
     try {
-      // Get the documents directory
-      final documentsDir = await getApplicationDocumentsDirectory();
-      
-      // Create a directory for saved images
-      final outputDir = Directory(path.join(documentsDir.path, 'EpubImages', 'SavedImages'));
-      
+      dirPath = await directorySelector.selectDirectory(context);
+    } on PlatformException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to open directory picker: ${e.message ?? e.code}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unexpected error selecting directory: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (dirPath == null || dirPath.isEmpty) {
+      // User cancelled the picker
+      return;
+    }
+
+    // Step 2: Ensure directory exists / can be created
+    late final Directory outputDir;
+    try {
+      outputDir = Directory(dirPath);
       if (!await outputDir.exists()) {
         await outputDir.create(recursive: true);
       }
-      
-      // Save the image
+    } on FileSystemException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot access or create directory:\n${e.osError?.message ?? e.message}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unexpected error preparing directory: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Step 3: Write the image file
+    try {
       final imagePath = path.join(outputDir.path, image.name);
       final imageFile = File(imagePath);
       await imageFile.writeAsBytes(image.data);
-      
-      // Show success message
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -179,14 +237,23 @@ class ImageGrid extends StatelessWidget {
           ),
         );
       }
+    } on FileSystemException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save image (file error): ${e.osError?.message ?? e.message}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } catch (e) {
-      // Show error message
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to save image: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
