@@ -15,6 +15,9 @@ class ImageGrid extends StatelessWidget {
   /// The number of columns in the grid
   final int crossAxisCount;
 
+  /// Cache width hint for thumbnail images (pixels)
+  final int cacheImageWidth;
+
   /// Selector to choose directory when saving images
   final DirectorySelector directorySelector;
 
@@ -23,6 +26,7 @@ class ImageGrid extends StatelessWidget {
     super.key,
     required this.images,
     this.crossAxisCount = 3,
+    this.cacheImageWidth = 300,
     this.directorySelector = const FilePickerDirectorySelector(),
   });
 
@@ -60,6 +64,7 @@ class ImageGrid extends StatelessWidget {
               child: Image.memory(
                 image.data,
                 fit: BoxFit.cover,
+                cacheWidth: cacheImageWidth,
                 errorBuilder: (context, error, stackTrace) {
                   return const Center(
                     child: Icon(
@@ -90,51 +95,65 @@ class ImageGrid extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppBar(
-              title: Text('Image ${index + 1} of ${images.length}'),
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Image.memory(
-                      image.data,
-                      fit: BoxFit.contain,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Name: ${image.name}'),
-                          const SizedBox(height: 8),
-                          Text('Type: ${image.mimeType}'),
-                          const SizedBox(height: 8),
-                          Text('Size: ${_formatFileSize(image.data.length)}'),
-                          const SizedBox(height: 8),
-                          Text('ID: ${image.id}'),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.save_alt),
-                            label: const Text('Save Image'),
-                            onPressed: () => _saveImage(context, image),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppBar(
+                title: Text('Image ${index + 1} of ${images.length}'),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
               ),
-            ),
-          ],
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Image.memory(
+                        image.data,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              size: 64,
+                              color: Colors.red,
+                            ),
+                          );
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Name: ${image.name}'),
+                            const SizedBox(height: 8),
+                            Text('Type: ${image.mimeType}'),
+                            const SizedBox(height: 8),
+                            Text('Size: ${_formatFileSize(image.data.length)}'),
+                            const SizedBox(height: 8),
+                            Text('ID: ${image.id}'),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.save_alt),
+                              label: const Text('Save Image'),
+                              onPressed: () => _saveImage(context, image),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

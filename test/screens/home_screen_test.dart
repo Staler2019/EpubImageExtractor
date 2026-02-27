@@ -46,10 +46,12 @@ void main() {
         ),
       );
       
-      // Verify book info is displayed
-      expect(find.text('Title: Test Book'), findsOneWidget);
-      expect(find.text('Author: Test Author'), findsOneWidget);
-      expect(find.text('File: /path/to/test.epub'), findsOneWidget);
+      // Verify book info is displayed.
+      // At the default 800dp test width the sidebar layout is used, which shows
+      // the raw field values without "Title:" / "Author:" / "File:" prefixes.
+      expect(find.text('Test Book'), findsOneWidget);
+      expect(find.text('Test Author'), findsOneWidget);
+      expect(find.text('/path/to/test.epub'), findsOneWidget);
       
       // Verify action buttons are available
       expect(find.text('Extract Images'), findsOneWidget);
@@ -94,6 +96,29 @@ void main() {
       expect(find.byType(ImageGrid), findsOneWidget);
     });
     
+    testWidgets('displays saving indicator when isSaving is true', (WidgetTester tester) async {
+      final testBook = BookModel(
+        title: 'Test Book',
+        author: 'Test Author',
+        filePath: '/path/to/test.epub',
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            selectedEpubProvider.overrideWith((ref) => testBook),
+            isSavingProvider.overrideWith((ref) => true),
+          ],
+          child: const MaterialApp(
+            home: HomeScreen(),
+          ),
+        ),
+      );
+
+      expect(find.text('Saving images...'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
     testWidgets('Save All Images button is disabled when no images are extracted', (WidgetTester tester) async {
       // In the HomeScreen implementation, the Save All Images button is only enabled when:
       // 1. A book is selected
