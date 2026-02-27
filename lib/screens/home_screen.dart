@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/book_model.dart';
 import '../models/extraction_result.dart';
 import '../providers/epub_providers.dart';
+import '../providers/theme_provider.dart';
 import '../utils/responsive.dart';
 import '../widgets/extraction_status_widget.dart';
 import '../widgets/image_grid.dart';
@@ -22,6 +23,7 @@ class HomeScreen extends HookConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('EPUB Image Extractor'),
+        actions: const [_ThemeModeButton()],
       ),
       body: Responsive.hasSidebar(context)
           ? _buildSidebarBody(context, ref, selectedEpub, extractionState, isSaving)
@@ -465,5 +467,57 @@ class HomeScreen extends HookConsumerWidget {
         ),
       );
     }
+  }
+}
+
+class _ThemeModeButton extends ConsumerWidget {
+  const _ThemeModeButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    return PopupMenuButton<ThemeMode>(
+      icon: Icon(_iconFor(themeMode)),
+      tooltip: 'Theme',
+      onSelected: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: ThemeMode.light,
+          child: _ThemeOption(icon: Icons.light_mode, label: 'Light'),
+        ),
+        PopupMenuItem(
+          value: ThemeMode.dark,
+          child: _ThemeOption(icon: Icons.dark_mode, label: 'Dark'),
+        ),
+        PopupMenuItem(
+          value: ThemeMode.system,
+          child: _ThemeOption(icon: Icons.brightness_auto, label: 'System'),
+        ),
+      ],
+    );
+  }
+
+  IconData _iconFor(ThemeMode mode) => switch (mode) {
+        ThemeMode.light => Icons.light_mode,
+        ThemeMode.dark => Icons.dark_mode,
+        ThemeMode.system => Icons.brightness_auto,
+      };
+}
+
+class _ThemeOption extends StatelessWidget {
+  const _ThemeOption({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 12),
+        Text(label),
+      ],
+    );
   }
 }

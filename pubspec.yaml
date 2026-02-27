@@ -50,6 +50,9 @@ dependencies:
   flutter_hooks: ^0.20.3
   hooks_riverpod: ^2.4.9
 
+  # Preferences storage
+  shared_preferences: ^2.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.staler2019.epud_image_extractor"
-    compileSdk = 35 // Set to Android 15 (API level 35)
+    compileSdk = 36 // Set to Android 15 (API level 35)
     ndkVersion = "27.0.12077973" // Updated NDK version for plugin compatibility
 
     compileOptions {
