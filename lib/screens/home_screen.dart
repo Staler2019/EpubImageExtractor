@@ -22,14 +22,6 @@ class HomeScreen extends HookConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('EPUB Image Extractor'),
-        actions: [
-          if (selectedEpub != null)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Select another EPUB',
-              onPressed: () => selectEpub(ref),
-            ),
-        ],
       ),
       body: Responsive.hasSidebar(context)
           ? _buildSidebarBody(context, ref, selectedEpub, extractionState, isSaving)
@@ -295,7 +287,12 @@ class HomeScreen extends HookConsumerWidget {
     if (epubBook == null) {
       return _buildNoBookSection(context, ref, isPhone: isPhone);
     }
-    return _buildBookInfoCard(context, epubBook, isPhone: isPhone);
+    return _buildBookInfoCard(
+      context,
+      epubBook,
+      isPhone: isPhone,
+      onSelectAnother: () => selectEpub(ref),
+    );
   }
 
   Widget _buildNoBookSection(
@@ -357,6 +354,7 @@ class HomeScreen extends HookConsumerWidget {
     BuildContext context,
     BookModel epubBook, {
     required bool isPhone,
+    VoidCallback? onSelectAnother,
   }) {
     if (isPhone) {
       return Card(
@@ -376,6 +374,21 @@ class HomeScreen extends HookConsumerWidget {
                 ),
               const SizedBox(height: 8),
               Text('File: ${epubBook.filePath}'),
+              if (onSelectAnother != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Change EPUB'),
+                    onPressed: onSelectAnother,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -418,6 +431,19 @@ class HomeScreen extends HookConsumerWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
+        if (onSelectAnother != null) ...[
+          const SizedBox(height: 12),
+          TextButton.icon(
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Change EPUB'),
+            onPressed: onSelectAnother,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              alignment: Alignment.centerLeft,
+            ),
+          ),
+        ],
       ],
     );
   }
