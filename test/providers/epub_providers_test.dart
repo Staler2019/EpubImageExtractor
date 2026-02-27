@@ -114,9 +114,21 @@ void main() {
         outputPath: '/test/output/path',
       );
       container.read(extractionStateProvider.notifier).state = extractionResult;
-      
+
       // Verify outputPathProvider returns the path
       expect(container.read(outputPathProvider), '/test/output/path');
+    });
+
+    test('isSavingProvider initial state is false', () {
+      expect(container.read(isSavingProvider), false);
+    });
+
+    test('isSavingProvider can be toggled true then false', () {
+      container.read(isSavingProvider.notifier).state = true;
+      expect(container.read(isSavingProvider), true);
+
+      container.read(isSavingProvider.notifier).state = false;
+      expect(container.read(isSavingProvider), false);
     });
   });
 }

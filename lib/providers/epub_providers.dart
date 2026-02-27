@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -29,6 +28,9 @@ final outputPathProvider = Provider<String?>((ref) {
   return extractionState?.outputPath;
 });
 
+/// Provider that tracks whether a save operation is in progress
+final isSavingProvider = StateProvider<bool>((ref) => false);
+
 /// Function to select an EPUB file
 Future<void> selectEpub(WidgetRef ref) async {
   try {
@@ -51,10 +53,7 @@ Future<void> selectEpub(WidgetRef ref) async {
       }
     }
   } catch (e) {
-    // Handle error
-    if (kDebugMode) {
-      print('Error selecting EPUB: $e');
-    }
+    // Silently ignore cancellation; propagate unexpected errors if needed
   }
 }
 
@@ -111,18 +110,25 @@ Future<void> saveImages(WidgetRef ref, {String? directoryPath}) async {
       selectedDirectoryPath = result;
     }
 
-    // Save images to the selected directory
-    final repository = ref.read(epubRepositoryProvider);
-    final result = await repository.saveImages(
-      extractionState.images!,
-      bookModel.title,
-      customDirectoryPath: selectedDirectoryPath,
-    );
-    
-    // Update extraction state
-    ref.read(extractionStateProvider.notifier).state = result;
+    // Show saving indicator
+    ref.read(isSavingProvider.notifier).state = true;
+
+    try {
+      // Save images to the selected directory
+      final repository = ref.read(epubRepositoryProvider);
+      final result = await repository.saveImages(
+        extractionState.images!,
+        bookModel.title,
+        customDirectoryPath: selectedDirectoryPath,
+      );
+
+      // Update extraction state
+      ref.read(extractionStateProvider.notifier).state = result;
+    } finally {
+      ref.read(isSavingProvider.notifier).state = false;
+    }
   } catch (e) {
-    // Handle error
+    ref.read(isSavingProvider.notifier).state = false;
     ref.read(extractionStateProvider.notifier).state = ExtractionResult.failure(
       message: 'Failed to save images: $e',
     );

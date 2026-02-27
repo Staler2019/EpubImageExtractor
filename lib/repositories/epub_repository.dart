@@ -1,7 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:epub_parser/epub_parser.dart' as epub;
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
@@ -37,29 +37,22 @@ class EpubRepository {
   /// Extracts images from an EPUB file
   Future<ExtractionResult> extractImages(String filePath) async {
     try {
-      // Parse the EPUB file
-      final bookModel = await parseEpub(filePath);
-      
-      // Read the EPUB file
+      // Read and parse the EPUB file once
       final file = File(filePath);
       final bytes = await file.readAsBytes();
-      
-      // Parse the EPUB content
       final parsedEpub = await epub.EpubReader.readBook(bytes);
-      
+
+      final title = parsedEpub.Title ?? path.basename(filePath);
+
       // Extract images
       final images = <BookImage>[];
-      
+
       if (parsedEpub.Content?.Images != null) {
         parsedEpub.Content!.Images!.forEach((key, value) {
           final name = key.split('/').last;
           final mimeType = _getMimeType(name);
-          
-          // Extract the actual image data from the EPUB file
-          // Convert the image content to Uint8List format for display and saving
-          // This replaces the dummy data that was previously used
           final imageData = Uint8List.fromList(value.Content!);
-          
+
           images.add(BookImage(
             id: key,
             name: name,
@@ -68,11 +61,10 @@ class EpubRepository {
           ));
         });
       }
-      
-      // Return success result with extracted images
+
       return ExtractionResult.success(
         images: images,
-        message: 'Successfully extracted ${images.length} images from ${bookModel.title}',
+        message: 'Successfully extracted ${images.length} images from $title',
       );
     } catch (e) {
       return ExtractionResult.failure(
@@ -108,16 +100,7 @@ class EpubRepository {
         // Create the base directory first
         final baseDir = Directory(path.join(documentsDir.path, 'EpubImages'));
         if (!await baseDir.exists()) {
-          try {
-            await baseDir.create(recursive: true);
-          } catch (e) {
-            if (kDebugMode) {
-              print('Warning: Failed to create base directory: $e');
-            }
-            // Try again with a different approach
-            await Directory(documentsDir.path).create(recursive: true);
-            await baseDir.create();
-          }
+          await baseDir.create(recursive: true);
         }
       
         outputDir = Directory(path.join(baseDir.path, dirName));
@@ -125,20 +108,7 @@ class EpubRepository {
     
       // Create the output directory if it doesn't exist
       if (!await outputDir.exists()) {
-        try {
-          await outputDir.create(recursive: true);
-        } catch (e) {
-          if (kDebugMode) {
-            print('Warning: Failed to create book directory: $e');
-          }
-          // Try again with a simpler name
-          final fallbackDir = Directory(path.join(
-            customDirectoryPath ?? (await getApplicationDocumentsDirectory()).path,
-            'Book_${DateTime.now().millisecondsSinceEpoch}'
-          ));
-          await fallbackDir.create(recursive: true);
-          return await _saveImagesToDirectory(images, fallbackDir);
-        }
+        await outputDir.create(recursive: true);
       }
     
       return await _saveImagesToDirectory(images, outputDir);
