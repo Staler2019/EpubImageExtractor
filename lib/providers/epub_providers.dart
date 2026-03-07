@@ -1,7 +1,8 @@
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/book_model.dart';
 import '../models/extraction_result.dart';
@@ -15,8 +16,10 @@ final epubRepositoryProvider = Provider<EpubRepository>((ref) {
 /// Provider for the currently selected EPUB book
 final selectedEpubProvider = StateProvider<BookModel?>((ref) => null);
 
-/// Provider holding the raw bytes of the selected EPUB (avoids caching to disk)
-final epubBytesProvider = StateProvider<Uint8List?>((ref) => null);
+/// Provider holding the file-system path to the selected EPUB.
+/// Storing a path (not bytes) avoids keeping a large Uint8List in memory
+/// for the entire session. The file_picker cache copy is used on Android.
+final epubFilePathProvider = StateProvider<String?>((ref) => null);
 
 /// Provider for the extraction state
 final extractionStateProvider = StateProvider<ExtractionResult?>((ref) => null);
@@ -36,29 +39,50 @@ final outputPathProvider = Provider<String?>((ref) {
 /// Provider that tracks whether a save operation is in progress
 final isSavingProvider = StateProvider<bool>((ref) => false);
 
+/// Deletes a file if it lives inside the file_picker cache directory,
+/// i.e. it was a temporary copy made by file_picker on Android.
+Future<void> _deleteCachedFileIfTemporary(String? filePath) async {
+  if (filePath == null) return;
+  try {
+    final tempDir = await getTemporaryDirectory();
+    if (filePath.startsWith(tempDir.path)) {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+  } catch (_) {
+    // Non-critical — ignore any failure
+  }
+}
+
 /// Function to select an EPUB file
 Future<void> selectEpub(WidgetRef ref) async {
   try {
+    // Delete the previously cached file before picking a new one
+    await _deleteCachedFileIfTemporary(ref.read(epubFilePathProvider));
+
     // Reset the current state
     ref.read(selectedEpubProvider.notifier).state = null;
-    ref.read(epubBytesProvider.notifier).state = null;
+    ref.read(epubFilePathProvider.notifier).state = null;
     ref.read(extractionStateProvider.notifier).state = null;
 
-    // Use withData: true so file_picker returns bytes directly without
-    // copying the EPUB into the app's cache directory on Android.
+    // Use withData: false so the file is not loaded into memory upfront.
+    // On Android, file_picker copies the file to the app cache and returns
+    // a readable path — this avoids OOM for large EPUBs.
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['epub'],
-      withData: true,
+      withData: false,
     );
 
     if (result != null && result.files.isNotEmpty) {
       final file = result.files.first;
-      final bytes = file.bytes;
-      if (bytes != null) {
-        ref.read(epubBytesProvider.notifier).state = bytes;
+      final filePath = file.path;
+      if (filePath != null) {
+        ref.read(epubFilePathProvider.notifier).state = filePath;
         final repository = ref.read(epubRepositoryProvider);
-        final bookModel = await repository.parseEpub(bytes, file.name);
+        final bookModel = await repository.parseEpub(filePath, file.name);
         ref.read(selectedEpubProvider.notifier).state = bookModel;
       }
     }
@@ -71,21 +95,21 @@ Future<void> selectEpub(WidgetRef ref) async {
 Future<void> extractImages(WidgetRef ref) async {
   try {
     final bookModel = ref.read(selectedEpubProvider);
-    final bytes = ref.read(epubBytesProvider);
+    final filePath = ref.read(epubFilePathProvider);
 
     if (bookModel == null) {
       throw Exception('No EPUB book selected');
     }
-    if (bytes == null) {
-      throw Exception('EPUB data not available');
+    if (filePath == null) {
+      throw Exception('EPUB file path not available');
     }
 
     // Set extraction state to in progress
     ref.read(extractionStateProvider.notifier).state = ExtractionResult.inProgress();
 
-    // Extract images
+    // Extract images — bytes are read transiently inside the repository
     final repository = ref.read(epubRepositoryProvider);
-    final result = await repository.extractImages(bytes);
+    final result = await repository.extractImages(filePath);
 
     // Update extraction state
     ref.read(extractionStateProvider.notifier).state = result;

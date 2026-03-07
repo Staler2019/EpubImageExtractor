@@ -64,8 +64,8 @@ void main() {
   });
 
   group('EpubRepository', () {
-    test('extractImages returns failure result for invalid epub bytes', () async {
-      final result = await repository.extractImages(Uint8List(0));
+    test('extractImages returns failure result for nonexistent file', () async {
+      final result = await repository.extractImages('/nonexistent/path/test.epub');
 
       expect(result.isFailure, true);
       expect(result.message, contains('Failed to extract images'));

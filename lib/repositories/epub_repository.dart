@@ -11,9 +11,11 @@ import '../utils/file_saver.dart';
 
 /// Repository for handling EPUB file operations
 class EpubRepository {
-  /// Parses an EPUB from bytes and extracts its metadata
-  Future<BookModel> parseEpub(Uint8List bytes, String fileName) async {
+  /// Parses an EPUB from a file path and extracts its metadata.
+  /// Bytes are read transiently and eligible for GC after the call returns.
+  Future<BookModel> parseEpub(String filePath, String fileName) async {
     try {
+      final bytes = await File(filePath).readAsBytes();
       final epubBook = await epub.EpubReader.readBook(bytes);
       final title = epubBook.Title ?? path.basenameWithoutExtension(fileName);
       final author = epubBook.Author;
@@ -21,16 +23,18 @@ class EpubRepository {
       return BookModel(
         title: title,
         author: author,
-        filePath: fileName,
+        filePath: filePath,
       );
     } catch (e) {
       throw Exception('Failed to parse EPUB file: $e');
     }
   }
 
-  /// Extracts images from EPUB bytes
-  Future<ExtractionResult> extractImages(Uint8List bytes) async {
+  /// Extracts images from an EPUB file at [filePath].
+  /// Bytes are read transiently and eligible for GC once parsing completes.
+  Future<ExtractionResult> extractImages(String filePath) async {
     try {
+      final bytes = await File(filePath).readAsBytes();
       final parsedEpub = await epub.EpubReader.readBook(bytes);
 
       final title = parsedEpub.Title ?? 'Unknown';
