@@ -1,14 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:epub_parser/epub_parser.dart' as epub;
-import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/book_model.dart';
 import '../models/extraction_result.dart';
-
-const _mediaScannerChannel = MethodChannel('com.staler2019.epud_image_extractor/media_scanner');
+import '../utils/file_saver.dart';
 
 /// Repository for handling EPUB file operations
 class EpubRepository {
@@ -114,22 +113,10 @@ class EpubRepository {
   /// Helper method to save images to a directory
   Future<ExtractionResult> _saveImagesToDirectory(List<BookImage> images, Directory outputDir) async {
     try {
-      // Save each image
-      final savedPaths = <String>[];
-      for (final image in images) {
-        final imagePath = path.join(outputDir.path, image.name);
-        await File(imagePath).writeAsBytes(image.data);
-        savedPaths.add(imagePath);
-      }
-
-      // Notify MediaStore on Android so other apps can see the saved files
-      if (Platform.isAndroid) {
-        try {
-          await _mediaScannerChannel.invokeMethod('scanFiles', {'paths': savedPaths});
-        } catch (_) {
-          // Non-critical; ignore scan errors
-        }
-      }
+      final filePathToData = {
+        for (final image in images) path.join(outputDir.path, image.name): image.data,
+      };
+      await saveImageFiles(filePathToData);
 
       return ExtractionResult.success(
         images: images,

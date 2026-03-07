@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 
 import '../models/book_model.dart';
 import '../services/directory_selector.dart';
+import '../utils/file_saver.dart';
 
 /// Widget that displays a grid of extracted images
 class ImageGrid extends StatelessWidget {
@@ -320,7 +321,7 @@ class _ImageDetailDialogState extends State<_ImageDetailDialog> {
 
     try {
       final imagePath = path.join(outputDir.path, image.name);
-      await File(imagePath).writeAsBytes(image.data);
+      await saveImageFile(imagePath, image.data);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
