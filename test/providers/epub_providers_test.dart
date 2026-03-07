@@ -10,16 +10,16 @@ import 'package:epud_image_extractor/repositories/epub_repository.dart';
 // Simple test implementation of EpubRepository
 class TestEpubRepository implements EpubRepository {
   @override
-  Future<BookModel> parseEpub(String filePath) async {
+  Future<BookModel> parseEpub(Uint8List bytes, String fileName) async {
     return BookModel(
       title: 'Test Book',
       author: 'Test Author',
-      filePath: filePath,
+      filePath: fileName,
     );
   }
-  
+
   @override
-  Future<ExtractionResult> extractImages(String filePath) async {
+  Future<ExtractionResult> extractImages(Uint8List bytes) async {
     return ExtractionResult.success(
       images: [
         BookImage(
@@ -76,7 +76,17 @@ void main() {
     test('selectedEpubProvider initial state is null', () {
       expect(container.read(selectedEpubProvider), null);
     });
-    
+
+    test('epubBytesProvider initial state is null', () {
+      expect(container.read(epubBytesProvider), null);
+    });
+
+    test('epubBytesProvider can be set and read', () {
+      final bytes = Uint8List.fromList([1, 2, 3, 4]);
+      container.read(epubBytesProvider.notifier).state = bytes;
+      expect(container.read(epubBytesProvider), bytes);
+    });
+
     test('extractionStateProvider initial state is null', () {
       expect(container.read(extractionStateProvider), null);
     });

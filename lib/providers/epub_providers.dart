@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -12,6 +14,9 @@ final epubRepositoryProvider = Provider<EpubRepository>((ref) {
 
 /// Provider for the currently selected EPUB book
 final selectedEpubProvider = StateProvider<BookModel?>((ref) => null);
+
+/// Provider holding the raw bytes of the selected EPUB (avoids caching to disk)
+final epubBytesProvider = StateProvider<Uint8List?>((ref) => null);
 
 /// Provider for the extraction state
 final extractionStateProvider = StateProvider<ExtractionResult?>((ref) => null);
@@ -36,19 +41,24 @@ Future<void> selectEpub(WidgetRef ref) async {
   try {
     // Reset the current state
     ref.read(selectedEpubProvider.notifier).state = null;
+    ref.read(epubBytesProvider.notifier).state = null;
     ref.read(extractionStateProvider.notifier).state = null;
-    
-    // Open file picker
+
+    // Use withData: true so file_picker returns bytes directly without
+    // copying the EPUB into the app's cache directory on Android.
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['epub'],
+      withData: true,
     );
-    
+
     if (result != null && result.files.isNotEmpty) {
-      final filePath = result.files.first.path;
-      if (filePath != null) {
+      final file = result.files.first;
+      final bytes = file.bytes;
+      if (bytes != null) {
+        ref.read(epubBytesProvider.notifier).state = bytes;
         final repository = ref.read(epubRepositoryProvider);
-        final bookModel = await repository.parseEpub(filePath);
+        final bookModel = await repository.parseEpub(bytes, file.name);
         ref.read(selectedEpubProvider.notifier).state = bookModel;
       }
     }
@@ -61,18 +71,22 @@ Future<void> selectEpub(WidgetRef ref) async {
 Future<void> extractImages(WidgetRef ref) async {
   try {
     final bookModel = ref.read(selectedEpubProvider);
-    
+    final bytes = ref.read(epubBytesProvider);
+
     if (bookModel == null) {
       throw Exception('No EPUB book selected');
     }
-    
+    if (bytes == null) {
+      throw Exception('EPUB data not available');
+    }
+
     // Set extraction state to in progress
     ref.read(extractionStateProvider.notifier).state = ExtractionResult.inProgress();
-    
+
     // Extract images
     final repository = ref.read(epubRepositoryProvider);
-    final result = await repository.extractImages(bookModel.filePath);
-    
+    final result = await repository.extractImages(bytes);
+
     // Update extraction state
     ref.read(extractionStateProvider.notifier).state = result;
   } catch (e) {

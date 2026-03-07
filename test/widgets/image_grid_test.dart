@@ -70,11 +70,11 @@ void main() {
       
       // Verify dialog is shown with image details
       expect(find.byType(Dialog), findsOneWidget);
+      // AppBar title shows current position
       expect(find.text('Image 1 of 2'), findsOneWidget);
-      expect(find.text('Name: test_image1.jpg'), findsOneWidget);
-      expect(find.text('Type: image/jpeg'), findsOneWidget);
-      expect(find.text('Size: 4 B'), findsOneWidget);
-      expect(find.text('ID: image1'), findsOneWidget);
+      // Footer shows file name and combined mime·size label
+      expect(find.text('test_image1.jpg'), findsWidgets);
+      expect(find.text('image/jpeg · 4 B'), findsOneWidget);
       
       // Close the dialog
       await tester.tap(find.byIcon(Icons.close));

@@ -1,48 +1,40 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:epub_parser/epub_parser.dart' as epub;
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/book_model.dart';
 import '../models/extraction_result.dart';
 
+const _mediaScannerChannel = MethodChannel('com.staler2019.epud_image_extractor/media_scanner');
+
 /// Repository for handling EPUB file operations
 class EpubRepository {
-  /// Parses an EPUB file and extracts its content
-  Future<BookModel> parseEpub(String filePath) async {
+  /// Parses an EPUB from bytes and extracts its metadata
+  Future<BookModel> parseEpub(Uint8List bytes, String fileName) async {
     try {
-      // Open the EPUB file
-      final file = File(filePath);
-      final bytes = await file.readAsBytes();
-      
-      // Parse the EPUB content
       final epubBook = await epub.EpubReader.readBook(bytes);
-      
-      // Extract basic metadata
-      final title = epubBook.Title ?? path.basename(filePath);
+      final title = epubBook.Title ?? path.basenameWithoutExtension(fileName);
       final author = epubBook.Author;
-      
+
       return BookModel(
         title: title,
         author: author,
-        filePath: filePath,
+        filePath: fileName,
       );
     } catch (e) {
       throw Exception('Failed to parse EPUB file: $e');
     }
   }
 
-  /// Extracts images from an EPUB file
-  Future<ExtractionResult> extractImages(String filePath) async {
+  /// Extracts images from EPUB bytes
+  Future<ExtractionResult> extractImages(Uint8List bytes) async {
     try {
-      // Read and parse the EPUB file once
-      final file = File(filePath);
-      final bytes = await file.readAsBytes();
       final parsedEpub = await epub.EpubReader.readBook(bytes);
 
-      final title = parsedEpub.Title ?? path.basename(filePath);
+      final title = parsedEpub.Title ?? 'Unknown';
 
       // Extract images
       final images = <BookImage>[];
@@ -123,11 +115,22 @@ class EpubRepository {
   Future<ExtractionResult> _saveImagesToDirectory(List<BookImage> images, Directory outputDir) async {
     try {
       // Save each image
+      final savedPaths = <String>[];
       for (final image in images) {
         final imagePath = path.join(outputDir.path, image.name);
         await File(imagePath).writeAsBytes(image.data);
+        savedPaths.add(imagePath);
       }
-      
+
+      // Notify MediaStore on Android so other apps can see the saved files
+      if (Platform.isAndroid) {
+        try {
+          await _mediaScannerChannel.invokeMethod('scanFiles', {'paths': savedPaths});
+        } catch (_) {
+          // Non-critical; ignore scan errors
+        }
+      }
+
       return ExtractionResult.success(
         images: images,
         outputPath: outputDir.path,
