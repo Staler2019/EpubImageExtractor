@@ -16,7 +16,7 @@ void main() {
       await tester.pumpWidget(
         const ProviderScope(
           child: MaterialApp(
-            home: HomeScreen(),
+            home: const HomeScreen(),
           ),
         ),
       );
@@ -41,7 +41,7 @@ void main() {
             selectedEpubProvider.overrideWith((ref) => testBook),
           ],
           child: const MaterialApp(
-            home: HomeScreen(),
+            home: const HomeScreen(),
           ),
         ),
       );
@@ -84,7 +84,7 @@ void main() {
             extractionStateProvider.overrideWith((ref) => extractionResult),
           ],
           child: const MaterialApp(
-            home: HomeScreen(),
+            home: const HomeScreen(),
           ),
         ),
       );
@@ -110,7 +110,7 @@ void main() {
             isSavingProvider.overrideWith((ref) => true),
           ],
           child: const MaterialApp(
-            home: HomeScreen(),
+            home: const HomeScreen(),
           ),
         ),
       );
@@ -144,7 +144,7 @@ void main() {
             extractionStateProvider.overrideWith((ref) => extractionResult),
           ],
           child: const MaterialApp(
-            home: HomeScreen(),
+            home: const HomeScreen(),
           ),
         ),
       );
