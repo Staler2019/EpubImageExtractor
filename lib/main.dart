@@ -6,10 +6,12 @@ import 'package:path_provider/path_provider.dart';
 
 import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
+import 'services/file_open_channel.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _cleanFilepickerCache();
+  await _cleanAppCache();
+  await setupFileOpenChannel();
   runApp(
     const ProviderScope(
       child: MyApp(),
@@ -17,15 +19,20 @@ Future<void> main() async {
   );
 }
 
-/// Deletes the file_picker cache directory left over from previous sessions.
-/// file_picker copies picked files to getTemporaryDirectory()/file_picker/
-/// on Android, and these are never cleaned up automatically.
-Future<void> _cleanFilepickerCache() async {
+/// Cleans up temporary files left from previous sessions:
+/// - file_picker copies picked files to <temp>/file_picker/ on Android
+/// - epub_from_intent.epub is the fixed-name temp copy created when the app is
+///   opened via an Android content:// intent
+Future<void> _cleanAppCache() async {
   try {
     final tempDir = await getTemporaryDirectory();
-    final cacheDir = Directory('${tempDir.path}/file_picker');
-    if (await cacheDir.exists()) {
-      await cacheDir.delete(recursive: true);
+    final filePickerCache = Directory('${tempDir.path}/file_picker');
+    if (await filePickerCache.exists()) {
+      await filePickerCache.delete(recursive: true);
+    }
+    final intentEpub = File('${tempDir.path}/epub_from_intent.epub');
+    if (await intentEpub.exists()) {
+      await intentEpub.delete();
     }
   } catch (_) {
     // Non-critical — ignore any failure
