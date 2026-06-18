@@ -111,7 +111,7 @@ class EpubNotifier extends Notifier<EpubState> {
       );
       state = state.copyWith(selectedBook: bookModel);
     } catch (_) {
-      // Consistent with selectEpub — silent failure leaves state reset.
+      state = const EpubState();
     }
   }
 

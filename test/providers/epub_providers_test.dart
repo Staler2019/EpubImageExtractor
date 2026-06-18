@@ -16,15 +16,9 @@ import 'package:epud_image_extractor/repositories/epub_repository.dart';
 
 /// Configurable stub — can simulate parse or extract failures on demand.
 class _TestEpubRepository implements EpubRepository {
-  bool failParse;
-  bool failExtract;
-  bool failSave;
-
-  _TestEpubRepository({
-    this.failParse = false,
-    this.failExtract = false,
-    this.failSave = false,
-  });
+  bool failParse = false;
+  bool failExtract = false;
+  bool failSave = false;
 
   static final _sampleImage = BookImage(
     id: 'test-id',
