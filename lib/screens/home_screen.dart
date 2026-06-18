@@ -483,15 +483,15 @@ class _ThemeModeButton extends ConsumerWidget {
       itemBuilder: (_) => const [
         PopupMenuItem(
           value: ThemeMode.light,
-          child: const _ThemeOption(icon: Icons.light_mode, label: 'Light'),
+          child: _ThemeOption(icon: Icons.light_mode, label: 'Light'),
         ),
         PopupMenuItem(
           value: ThemeMode.dark,
-          child: const _ThemeOption(icon: Icons.dark_mode, label: 'Dark'),
+          child: _ThemeOption(icon: Icons.dark_mode, label: 'Dark'),
         ),
         PopupMenuItem(
           value: ThemeMode.system,
-          child: const _ThemeOption(icon: Icons.brightness_auto, label: 'System'),
+          child: _ThemeOption(icon: Icons.brightness_auto, label: 'System'),
         ),
       ],
     );

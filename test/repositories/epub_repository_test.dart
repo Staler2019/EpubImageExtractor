@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'package:epud_image_extractor/repositories/epub_repository.dart';
 import 'package:epud_image_extractor/models/extraction_result.dart';
