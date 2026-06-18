@@ -20,7 +20,7 @@ Future<void> main() async {
 }
 
 /// Cleans up temporary files left from previous sessions:
-/// - file_picker copies picked files to <temp>/file_picker/ on Android
+/// - file_picker copies picked files to `getTemporaryDirectory()`/file_picker/ on Android
 /// - epub_from_intent.epub is the fixed-name temp copy created when the app is
 ///   opened via an Android content:// intent
 Future<void> _cleanAppCache() async {
