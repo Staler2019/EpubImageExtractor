@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../models/book_model.dart';
 import '../models/extraction_result.dart';
 import '../providers/epub_providers.dart';
 import '../providers/theme_provider.dart';
+import '../services/file_open_channel.dart';
 import '../utils/responsive.dart';
 import '../widgets/extraction_status_widget.dart';
 import '../widgets/image_grid.dart';
@@ -16,6 +18,20 @@ class HomeScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Handle EPUB files opened from the OS ("Open With" / default app)
+    useEffect(() {
+      // Cold-start: app launched by opening a file
+      final initialPath = consumeInitialEpubPath();
+      if (initialPath != null) {
+        Future.microtask(() => openEpubFromPath(ref, initialPath));
+      }
+      // Warm-start: file opened while app is already running
+      final subscription = epubFileOpenStream.listen(
+        (path) => openEpubFromPath(ref, path),
+      );
+      return subscription.cancel;
+    }, const []);
+
     final selectedEpub = ref.watch(selectedEpubProvider);
     final extractionState = ref.watch(extractionStateProvider);
     final isSaving = ref.watch(isSavingProvider);

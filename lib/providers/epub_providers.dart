@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as path_pkg;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/book_model.dart';
@@ -88,6 +89,25 @@ Future<void> selectEpub(WidgetRef ref) async {
     }
   } catch (e) {
     // Silently ignore cancellation; propagate unexpected errors if needed
+  }
+}
+
+/// Opens an EPUB directly from a file-system path (e.g. received from the OS
+/// "Open With" handler) without showing the file picker.
+Future<void> openEpubFromPath(WidgetRef ref, String filePath) async {
+  try {
+    await _deleteCachedFileIfTemporary(ref.read(epubFilePathProvider));
+
+    ref.read(selectedEpubProvider.notifier).state = null;
+    ref.read(epubFilePathProvider.notifier).state = null;
+    ref.read(extractionStateProvider.notifier).state = null;
+
+    ref.read(epubFilePathProvider.notifier).state = filePath;
+    final repository = ref.read(epubRepositoryProvider);
+    final bookModel = await repository.parseEpub(filePath, path_pkg.basename(filePath));
+    ref.read(selectedEpubProvider.notifier).state = bookModel;
+  } catch (_) {
+    // Silently ignore — consistent with selectEpub
   }
 }
 
