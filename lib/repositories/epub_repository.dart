@@ -11,6 +11,8 @@ import '../utils/file_saver.dart';
 
 /// Repository for handling EPUB file operations
 class EpubRepository {
+  const EpubRepository();
+
   /// Parses an EPUB from a file path and extracts its metadata.
   /// Bytes are read transiently and eligible for GC after the call returns.
   Future<BookModel> parseEpub(String filePath, String fileName) async {
@@ -134,6 +136,18 @@ class EpubRepository {
     }
   }
   
+  /// Saves a single [image] to [directoryPath], creating the directory if needed.
+  /// Returns the full path of the saved file.
+  Future<String> saveImage(BookImage image, String directoryPath) async {
+    final dir = Directory(directoryPath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    final imagePath = path.join(directoryPath, image.name);
+    await saveImageFile(imagePath, image.data);
+    return imagePath;
+  }
+
   /// Determines the MIME type based on the file extension
   String _getMimeType(String fileName) {
     final extension = path.extension(fileName).toLowerCase();

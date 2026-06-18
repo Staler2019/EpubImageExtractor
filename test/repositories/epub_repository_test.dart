@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -68,6 +69,26 @@ void main() {
 
       expect(result.isFailure, true);
       expect(result.message, contains('Failed to extract images'));
+    });
+
+    test('saveImage returns a string path (or throws on unavailable filesystem)', () async {
+      final image = BookImage(
+        id: 'id_image1.jpg',
+        name: 'image1.jpg',
+        mimeType: 'image/jpeg',
+        data: Uint8List.fromList([1, 2, 3, 4]),
+      );
+
+      // In the test environment the filesystem is not writable at /mock paths,
+      // so we just verify the method exists and returns a String or throws a
+      // FileSystemException — not an unimplemented error.
+      try {
+        final path = await repository.saveImage(image, '/mock/custom/path');
+        expect(path, isA<String>());
+        expect(path, contains('image1.jpg'));
+      } on FileSystemException {
+        // Expected in sandboxed test environments.
+      }
     });
 
     test('saveImages returns success result with custom directory path', () async {

@@ -23,18 +23,21 @@ class HomeScreen extends HookConsumerWidget {
       // Cold-start: app launched by opening a file
       final initialPath = consumeInitialEpubPath();
       if (initialPath != null) {
-        Future.microtask(() => openEpubFromPath(ref, initialPath));
+        Future.microtask(
+          () => ref.read(epubProvider.notifier).openFromPath(initialPath),
+        );
       }
       // Warm-start: file opened while app is already running
       final subscription = epubFileOpenStream.listen(
-        (path) => openEpubFromPath(ref, path),
+        (path) => ref.read(epubProvider.notifier).openFromPath(path),
       );
       return subscription.cancel;
     }, const []);
 
-    final selectedEpub = ref.watch(selectedEpubProvider);
-    final extractionState = ref.watch(extractionStateProvider);
-    final isSaving = ref.watch(isSavingProvider);
+    final epubState = ref.watch(epubProvider);
+    final selectedEpub = epubState.selectedBook;
+    final extractionState = epubState.extraction;
+    final isSaving = epubState.isSaving;
 
     return Scaffold(
       appBar: AppBar(
@@ -93,6 +96,7 @@ class HomeScreen extends HookConsumerWidget {
                 images: images,
                 crossAxisCount: Responsive.gridColumns(context),
                 cacheImageWidth: Responsive.imageCacheWidth(context),
+                repository: ref.read(epubRepositoryProvider),
               ),
             ),
           ),
@@ -118,7 +122,9 @@ class HomeScreen extends HookConsumerWidget {
           child: ElevatedButton.icon(
             icon: const Icon(Icons.image_search),
             label: const Text('Extract Images'),
-            onPressed: canExtract ? () => extractImages(ref) : null,
+            onPressed: canExtract
+                ? () => ref.read(epubProvider.notifier).extractImages()
+                : null,
           ),
         ),
         const SizedBox(width: 8),
@@ -192,7 +198,7 @@ class HomeScreen extends HookConsumerWidget {
         VerticalDivider(width: 1, thickness: 1, color: colorScheme.outlineVariant),
         // Content area
         Expanded(
-          child: _buildContentArea(context, images, padding),
+          child: _buildContentArea(context, ref, images, padding),
         ),
       ],
     );
@@ -215,7 +221,9 @@ class HomeScreen extends HookConsumerWidget {
         FilledButton.icon(
           icon: const Icon(Icons.image_search),
           label: const Text('Extract Images'),
-          onPressed: canExtract ? () => extractImages(ref) : null,
+          onPressed: canExtract
+              ? () => ref.read(epubProvider.notifier).extractImages()
+              : null,
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
@@ -229,6 +237,7 @@ class HomeScreen extends HookConsumerWidget {
 
   Widget _buildContentArea(
     BuildContext context,
+    WidgetRef ref,
     List<BookImage>? images,
     EdgeInsets padding,
   ) {
@@ -255,6 +264,7 @@ class HomeScreen extends HookConsumerWidget {
               images: images,
               crossAxisCount: Responsive.gridColumns(context),
               cacheImageWidth: Responsive.imageCacheWidth(context),
+              repository: ref.read(epubRepositoryProvider),
             ),
           ),
         ),
@@ -309,7 +319,7 @@ class HomeScreen extends HookConsumerWidget {
       context,
       epubBook,
       isPhone: isPhone,
-      onSelectAnother: () => selectEpub(ref),
+      onSelectAnother: () => ref.read(epubProvider.notifier).selectEpub(),
     );
   }
 
@@ -333,7 +343,7 @@ class HomeScreen extends HookConsumerWidget {
               ElevatedButton.icon(
                 icon: const Icon(Icons.file_open),
                 label: const Text('Select EPUB'),
-                onPressed: () => selectEpub(ref),
+                onPressed: () => ref.read(epubProvider.notifier).selectEpub(),
               ),
             ],
           ),
@@ -362,7 +372,7 @@ class HomeScreen extends HookConsumerWidget {
         FilledButton.icon(
           icon: const Icon(Icons.file_open),
           label: const Text('Select EPUB'),
-          onPressed: () => selectEpub(ref),
+          onPressed: () => ref.read(epubProvider.notifier).selectEpub(),
         ),
       ],
     );
@@ -471,13 +481,13 @@ class HomeScreen extends HookConsumerWidget {
   // ---------------------------------------------------------------------------
 
   Future<void> _onSaveAll(BuildContext context, WidgetRef ref) async {
-    await saveImages(ref);
+    await ref.read(epubProvider.notifier).saveImages();
     if (!context.mounted) return;
-    final result = ref.read(extractionStateProvider);
-    if (result?.isSuccess == true && result?.outputPath != null) {
+    final outputPath = ref.read(outputPathProvider);
+    if (outputPath != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('All images saved to ${result!.outputPath}'),
+          content: Text('All images saved to $outputPath'),
           duration: const Duration(seconds: 5),
           action: SnackBarAction(label: 'OK', onPressed: () {}),
         ),
