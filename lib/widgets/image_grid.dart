@@ -2,25 +2,27 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as path;
 
 import '../models/book_model.dart';
+import '../repositories/epub_repository.dart';
 import '../services/directory_selector.dart';
-import '../utils/file_saver.dart';
 
 /// Widget that displays a grid of extracted images
 class ImageGrid extends StatelessWidget {
   /// The list of images to display
   final List<BookImage> images;
-  
+
   /// The number of columns in the grid
   final int crossAxisCount;
 
   /// Cache width hint for thumbnail images (pixels)
   final int cacheImageWidth;
 
-  /// Selector to choose directory when saving images
+  /// Selector to choose directory when saving a single image
   final DirectorySelector directorySelector;
+
+  /// Repository used for single-image save operations
+  final EpubRepository repository;
 
   /// Creates a new ImageGrid instance
   const ImageGrid({
@@ -29,6 +31,7 @@ class ImageGrid extends StatelessWidget {
     this.crossAxisCount = 3,
     this.cacheImageWidth = 300,
     this.directorySelector = const FilePickerDirectorySelector(),
+    this.repository = const EpubRepository(),
   });
 
   @override
@@ -99,6 +102,7 @@ class ImageGrid extends StatelessWidget {
         images: images,
         initialIndex: index,
         directorySelector: directorySelector,
+        repository: repository,
       ),
     );
   }
@@ -113,11 +117,13 @@ class _ImageDetailDialog extends StatefulWidget {
     required this.images,
     required this.initialIndex,
     required this.directorySelector,
+    required this.repository,
   });
 
   final List<BookImage> images;
   final int initialIndex;
   final DirectorySelector directorySelector;
+  final EpubRepository repository;
 
   @override
   State<_ImageDetailDialog> createState() => _ImageDetailDialogState();
@@ -289,44 +295,12 @@ class _ImageDetailDialogState extends State<_ImageDetailDialog> {
 
     if (dirPath == null || dirPath.isEmpty) return;
 
-    late final Directory outputDir;
     try {
-      outputDir = Directory(dirPath);
-      if (!await outputDir.exists()) {
-        await outputDir.create(recursive: true);
-      }
-    } on FileSystemException catch (e) {
+      final savedPath = await widget.repository.saveImage(image, dirPath);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Cannot access or create directory:\n${e.osError?.message ?? e.message}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-      return;
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unexpected error preparing directory: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      final imagePath = path.join(outputDir.path, image.name);
-      await saveImageFile(imagePath, image.data);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Image saved to $imagePath'),
+            content: Text('Image saved to $savedPath'),
             duration: const Duration(seconds: 3),
             action: SnackBarAction(label: 'OK', onPressed: () {}),
           ),

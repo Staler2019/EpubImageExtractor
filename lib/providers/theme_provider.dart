@@ -4,15 +4,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _kThemeModeKey = 'theme_mode';
 
-class ThemeModeNotifier extends StateNotifier<ThemeMode> {
-  ThemeModeNotifier() : super(ThemeMode.system) {
-    _load();
+class ThemeModeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() {
+    // Schedule the async prefs load without blocking the synchronous build.
+    // State starts at ThemeMode.system; the stored value is applied once loaded.
+    Future.microtask(_load);
+    return ThemeMode.system;
   }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getString(_kThemeModeKey);
-    state = _fromString(value);
+    state = _fromString(prefs.getString(_kThemeModeKey));
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -34,6 +37,6 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
       };
 }
 
-final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
-  (_) => ThemeModeNotifier(),
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
+  ThemeModeNotifier.new,
 );
