@@ -16,6 +16,10 @@ String? consumeInitialEpubPath() {
   return path;
 }
 
+/// Returns the EPUB path without consuming it — useful for startup cache cleanup
+/// that should preserve the current session's file.
+String? peekInitialEpubPath() => _pendingPath;
+
 /// Stream of EPUB file paths received while the app is already running.
 Stream<String> get epubFileOpenStream => _controller.stream;
 

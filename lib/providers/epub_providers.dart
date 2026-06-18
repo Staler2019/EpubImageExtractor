@@ -137,12 +137,13 @@ class EpubNotifier extends Notifier<EpubState> {
   /// Saves extracted images to [directoryPath], or prompts the user if null.
   Future<void> saveImages({String? directoryPath}) async {
     final extraction = state.extraction;
+    final images = extraction?.images;
     final bookModel = state.selectedBook;
 
     if (extraction == null ||
         !extraction.isSuccess ||
-        extraction.images == null ||
-        extraction.images!.isEmpty ||
+        images == null ||
+        images.isEmpty ||
         bookModel == null) {
       return;
     }
@@ -158,7 +159,7 @@ class EpubNotifier extends Notifier<EpubState> {
     try {
       final repository = ref.read(epubRepositoryProvider);
       final result = await repository.saveImages(
-        extraction.images!,
+        images,
         bookModel.title,
         customDirectoryPath: selectedDir,
       );

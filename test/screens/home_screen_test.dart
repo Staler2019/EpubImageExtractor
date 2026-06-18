@@ -139,6 +139,35 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
+    testWidgets('displays failure message when extraction fails', (WidgetTester tester) async {
+      final testBook = BookModel(
+        title: 'Test Book',
+        author: 'Test Author',
+        filePath: '/path/to/test.epub',
+      );
+
+      final failureResult = ExtractionResult.failure(
+        message: 'Failed to extract images: file not found',
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            epubProvider.overrideWith(
+              () => _StubbedEpubNotifier(
+                EpubState(selectedBook: testBook, extraction: failureResult),
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: HomeScreen(),
+          ),
+        ),
+      );
+
+      expect(find.textContaining('Failed to extract images'), findsOneWidget);
+    });
+
     testWidgets('Save All Images button is disabled when no images are extracted', (WidgetTester tester) async {
       final testBook = BookModel(
         title: 'Test Book',
