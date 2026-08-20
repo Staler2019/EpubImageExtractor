@@ -23,6 +23,48 @@ class _StubbedEpubNotifier extends EpubNotifier {
   EpubState build() => _seed;
 }
 
+
+/// Seeds a successful extraction with [count] images so the grid can scroll.
+EpubState _stateWithImages(int count) {
+  return EpubState(
+    selectedBook: BookModel(
+      title: 'Test Book',
+      author: 'Test Author',
+      filePath: '/path/to/test.epub',
+    ),
+    filePath: '/path/to/test.epub',
+    extraction: ExtractionResult.success(
+      images: List.generate(
+        count,
+        (index) => BookImage(
+          id: 'img-$index',
+          name: 'image-$index.jpg',
+          mimeType: 'image/jpeg',
+          data: Uint8List.fromList([1, 2, 3, 4]),
+        ),
+      ),
+      message: 'ok',
+    ),
+  );
+}
+
+/// Renders [HomeScreen] at a phone-sized surface (below the 600dp breakpoint).
+Future<void> _pumpPhoneHome(WidgetTester tester, EpubState seed) async {
+  tester.view.physicalSize = const Size(400, 800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        epubProvider.overrideWith(() => _StubbedEpubNotifier(seed)),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ),
+  );
+  await tester.pump();
+}
+
 void main() {
   group('HomeScreen', () {
     testWidgets('displays initial state with select EPUB button', (WidgetTester tester) async {
@@ -62,10 +104,12 @@ void main() {
       );
 
       // At the default 800dp test width the sidebar layout is used, which shows
-      // the raw field values without "Title:" / "Author:" / "File:" prefixes.
+      // the raw field values without "Title:" / "Author:" prefixes.
       expect(find.text('Test Book'), findsOneWidget);
       expect(find.text('Test Author'), findsOneWidget);
-      expect(find.text('/path/to/test.epub'), findsOneWidget);
+      // The file path is a file_picker cache location on Android and carries no
+      // meaning for the user, so it must not be rendered.
+      expect(find.text('/path/to/test.epub'), findsNothing);
 
       // Verify action buttons are available
       expect(find.text('Extract Images'), findsOneWidget);
@@ -201,6 +245,101 @@ void main() {
       // canSave is false for empty images; tap should be a no-op
       await tester.tap(saveButtonFinder);
       await tester.pump();
+    });
+  });
+
+  group('HomeScreen phone book-info collapsing', () {
+    testWidgets('starts expanded and shows the full book info', (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(20));
+
+      expect(find.byKey(HomeScreen.bookInfoExpandedKey), findsOneWidget);
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsNothing);
+      expect(find.text('Author: Test Author'), findsOneWidget);
+    });
+
+    testWidgets('collapses the book info when the grid scrolls down',
+        (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(20));
+
+      await tester.drag(find.byType(ImageGrid), const Offset(0, -300));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+      expect(find.text('Author: Test Author'), findsNothing);
+      // The title stays visible so the user never loses track of the book.
+      expect(find.text('Test Book'), findsOneWidget);
+    });
+
+    testWidgets('stays collapsed while scrolling up short of the top',
+        (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(40));
+
+      await tester.drag(find.byType(ImageGrid), const Offset(0, -900));
+      await tester.pumpAndSettle();
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+
+      // Scrolling up without reaching the top must NOT expand the header —
+      // the header is tied to the grid's top boundary, not to drag direction.
+      await tester.drag(find.byType(ImageGrid), const Offset(0, 300));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+      expect(find.byKey(HomeScreen.bookInfoExpandedKey), findsNothing);
+    });
+
+    testWidgets('collapses as soon as the grid leaves the top boundary',
+        (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(40));
+
+      // A small nudge away from the top is enough — no direction tracking.
+      await tester.drag(find.byType(ImageGrid), const Offset(0, -40));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+    });
+
+    testWidgets('expands again when the grid scrolls back up', (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(20));
+
+      await tester.drag(find.byType(ImageGrid), const Offset(0, -300));
+      await tester.pumpAndSettle();
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+
+      // Overshoot upwards so the grid lands back on its top boundary.
+      await tester.drag(find.byType(ImageGrid), const Offset(0, 900));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(HomeScreen.bookInfoExpandedKey), findsOneWidget);
+      expect(find.text('Author: Test Author'), findsOneWidget);
+    });
+
+    testWidgets('stays expanded when there are no images to scroll',
+        (tester) async {
+      await _pumpPhoneHome(
+        tester,
+        EpubState(
+          selectedBook: BookModel(
+            title: 'Test Book',
+            author: 'Test Author',
+            filePath: '/path/to/test.epub',
+          ),
+          filePath: '/path/to/test.epub',
+        ),
+      );
+
+      expect(find.byKey(HomeScreen.bookInfoExpandedKey), findsOneWidget);
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsNothing);
+    });
+
+    testWidgets('collapsed bar keeps the extract and save actions reachable',
+        (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(20));
+
+      await tester.drag(find.byType(ImageGrid), const Offset(0, -300));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.image_search), findsOneWidget);
+      expect(find.byIcon(Icons.save_alt), findsOneWidget);
     });
   });
 }

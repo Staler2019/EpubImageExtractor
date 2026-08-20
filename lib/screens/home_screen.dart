@@ -16,6 +16,12 @@ class HomeScreen extends HookConsumerWidget {
   /// Creates a new HomeScreen instance
   const HomeScreen({super.key});
 
+  /// Identifies the full book-info card in the phone layout.
+  static const bookInfoExpandedKey = Key('book-info-expanded');
+
+  /// Identifies the single-line book-info bar shown while scrolling images.
+  static const bookInfoCollapsedKey = Key('book-info-collapsed');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Handle EPUB files opened from the OS ("Open With" / default app)
@@ -46,96 +52,11 @@ class HomeScreen extends HookConsumerWidget {
       ),
       body: Responsive.hasSidebar(context)
           ? _buildSidebarBody(context, ref, selectedEpub, extractionState, isSaving)
-          : _buildPhoneBody(context, ref, selectedEpub, extractionState, isSaving),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phone layout — stacked single-column
-  // ---------------------------------------------------------------------------
-
-  Widget _buildPhoneBody(
-    BuildContext context,
-    WidgetRef ref,
-    BookModel? selectedEpub,
-    ExtractionResult? extractionState,
-    bool isSaving,
-  ) {
-    final images = extractionState?.isSuccess == true ? extractionState?.images : null;
-    final padding = Responsive.contentPadding(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: padding.copyWith(bottom: 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildBookInfoSection(context, ref, selectedEpub, isPhone: true),
-              const SizedBox(height: 8),
-              if (extractionState != null || isSaving)
-                ExtractionStatusWidget(
-                  extractionState: extractionState ??
-                      ExtractionResult.inProgress(message: 'Saving images...'),
-                  isExtracting: extractionState?.isInProgress ?? false,
-                  isSaving: isSaving,
-                ),
-              if (extractionState != null || isSaving) const SizedBox(height: 8),
-              if (selectedEpub != null)
-                _buildPhoneActionButtons(context, ref, selectedEpub, extractionState),
-              if (selectedEpub != null) const SizedBox(height: 8),
-            ],
-          ),
-        ),
-        if (images != null)
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(left: padding.left, right: padding.right, bottom: padding.bottom),
-              child: ImageGrid(
-                images: images,
-                crossAxisCount: Responsive.gridColumns(context),
-                cacheImageWidth: Responsive.imageCacheWidth(context),
-                repository: ref.read(epubRepositoryProvider),
-              ),
+          : _PhoneBody(
+              selectedEpub: selectedEpub,
+              extractionState: extractionState,
+              isSaving: isSaving,
             ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildPhoneActionButtons(
-    BuildContext context,
-    WidgetRef ref,
-    BookModel epubBook,
-    ExtractionResult? extractionState,
-  ) {
-    final canExtract = extractionState == null || !extractionState.isInProgress;
-    final canSave = extractionState?.isSuccess == true &&
-        extractionState?.images != null &&
-        extractionState!.images!.isNotEmpty;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.image_search),
-            label: const Text('Extract Images'),
-            onPressed: canExtract
-                ? () => ref.read(epubProvider.notifier).extractImages()
-                : null,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.save_alt),
-            label: const Text('Save All Images'),
-            onPressed: canSave ? () => _onSaveAll(context, ref) : null,
-          ),
-        ),
-      ],
     );
   }
 
@@ -306,7 +227,7 @@ class HomeScreen extends HookConsumerWidget {
   // Shared — book info section
   // ---------------------------------------------------------------------------
 
-  Widget _buildBookInfoSection(
+  static Widget _buildBookInfoSection(
     BuildContext context,
     WidgetRef ref,
     BookModel? epubBook, {
@@ -323,7 +244,7 @@ class HomeScreen extends HookConsumerWidget {
     );
   }
 
-  Widget _buildNoBookSection(
+  static Widget _buildNoBookSection(
     BuildContext context,
     WidgetRef ref, {
     required bool isPhone,
@@ -378,7 +299,7 @@ class HomeScreen extends HookConsumerWidget {
     );
   }
 
-  Widget _buildBookInfoCard(
+  static Widget _buildBookInfoCard(
     BuildContext context,
     BookModel epubBook, {
     required bool isPhone,
@@ -400,8 +321,6 @@ class HomeScreen extends HookConsumerWidget {
                   'Author: ${epubBook.author}',
                   style: const TextStyle(fontSize: 16),
                 ),
-              const SizedBox(height: 8),
-              Text('File: ${epubBook.filePath}'),
               if (onSelectAnother != null) ...[
                 const SizedBox(height: 8),
                 Align(
@@ -452,13 +371,6 @@ class HomeScreen extends HookConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
-        const SizedBox(height: 8),
-        Text(
-          epubBook.filePath,
-          style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
         if (onSelectAnother != null) ...[
           const SizedBox(height: 12),
           TextButton.icon(
@@ -480,7 +392,7 @@ class HomeScreen extends HookConsumerWidget {
   // Shared — save action with SnackBar feedback
   // ---------------------------------------------------------------------------
 
-  Future<void> _onSaveAll(BuildContext context, WidgetRef ref) async {
+  static Future<void> _onSaveAll(BuildContext context, WidgetRef ref) async {
     await ref.read(epubProvider.notifier).saveImages();
     if (!context.mounted) return;
     final outputPath = ref.read(outputPathProvider);
@@ -494,6 +406,184 @@ class HomeScreen extends HookConsumerWidget {
       );
     }
   }
+}
+
+
+/// Phone layout — a stacked single column whose book-info header collapses to a
+/// single line while the user scrolls through the image grid.
+///
+/// The header deliberately lives outside the grid's scrollable so the grid keeps
+/// its own viewport; a [NotificationListener] relays the scroll direction rather
+/// than restructuring the whole screen into slivers.
+class _PhoneBody extends HookConsumerWidget {
+  const _PhoneBody({
+    required this.selectedEpub,
+    required this.extractionState,
+    required this.isSaving,
+  });
+
+  final BookModel? selectedEpub;
+  final ExtractionResult? extractionState;
+  final bool isSaving;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final images =
+        extractionState?.isSuccess == true ? extractionState?.images : null;
+    final padding = Responsive.contentPadding(context);
+    final isCollapsed = useState(false);
+
+    // With nothing to scroll there is no way back to the expanded header.
+    final canCollapse = selectedEpub != null && images != null;
+    final collapsed = canCollapse && isCollapsed.value;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: padding.copyWith(bottom: 0),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: collapsed
+                ? _buildCollapsedHeader(context, ref)
+                : _buildExpandedHeader(context, ref),
+          ),
+        ),
+        if (images != null)
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: padding.left,
+                right: padding.right,
+                bottom: padding.bottom,
+              ),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.depth != 0) return false;
+                  final metrics = notification.metrics;
+                  if (metrics.axis != Axis.vertical) return false;
+                  // Tied to the grid's top boundary, not to drag direction:
+                  // the header expands only once the images are back at the
+                  // very top, and collapses the moment they leave it. Reacting
+                  // to direction instead would pop the header open on any
+                  // upward flick mid-list.
+                  isCollapsed.value = metrics.extentBefore > 0;
+                  return false; // let the notification keep bubbling
+                },
+                child: ImageGrid(
+                  images: images,
+                  crossAxisCount: Responsive.gridColumns(context),
+                  cacheImageWidth: Responsive.imageCacheWidth(context),
+                  repository: ref.read(epubRepositoryProvider),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildExpandedHeader(BuildContext context, WidgetRef ref) {
+    final epubBook = selectedEpub;
+    return Column(
+      key: HomeScreen.bookInfoExpandedKey,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        HomeScreen._buildBookInfoSection(context, ref, epubBook, isPhone: true),
+        const SizedBox(height: 8),
+        if (extractionState != null || isSaving)
+          ExtractionStatusWidget(
+            extractionState: extractionState ??
+                ExtractionResult.inProgress(message: 'Saving images...'),
+            isExtracting: extractionState?.isInProgress ?? false,
+            isSaving: isSaving,
+          ),
+        if (extractionState != null || isSaving) const SizedBox(height: 8),
+        if (epubBook != null) _buildActionButtons(context, ref),
+        if (epubBook != null) const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  /// Single-line header: book title plus icon-only Extract / Save actions, so
+  /// no capability is lost while collapsed.
+  Widget _buildCollapsedHeader(BuildContext context, WidgetRef ref) {
+    final epubBook = selectedEpub!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      key: HomeScreen.bookInfoCollapsedKey,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(Icons.menu_book, color: colorScheme.primary, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              epubBook.title,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.image_search),
+            tooltip: 'Extract Images',
+            visualDensity: VisualDensity.compact,
+            onPressed: _canExtract
+                ? () => ref.read(epubProvider.notifier).extractImages()
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.save_alt),
+            tooltip: 'Save All Images',
+            visualDensity: VisualDensity.compact,
+            onPressed:
+                _canSave ? () => HomeScreen._onSaveAll(context, ref) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context, WidgetRef ref) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.image_search),
+            label: const Text('Extract Images'),
+            onPressed: _canExtract
+                ? () => ref.read(epubProvider.notifier).extractImages()
+                : null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.save_alt),
+            label: const Text('Save All Images'),
+            onPressed:
+                _canSave ? () => HomeScreen._onSaveAll(context, ref) : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  bool get _canExtract =>
+      extractionState == null || !extractionState!.isInProgress;
+
+  bool get _canSave =>
+      extractionState?.isSuccess == true &&
+      extractionState?.images != null &&
+      extractionState!.images!.isNotEmpty;
 }
 
 class _ThemeModeButton extends ConsumerWidget {

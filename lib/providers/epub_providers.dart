@@ -67,52 +67,48 @@ class EpubNotifier extends Notifier<EpubState> {
 
   /// Opens the OS file picker and parses the selected EPUB.
   Future<void> selectEpub() async {
+    await _deleteCachedIfTemporary(state.filePath);
+
+    state = const EpubState(); // full reset
+
+    final FilePickerResult? result;
     try {
-      await _deleteCachedIfTemporary(state.filePath);
-
-      state = const EpubState(); // full reset
-
       // withData: false avoids loading the entire file into memory up front.
       // file_picker creates a readable cache copy on Android.
-      final result = await FilePicker.platform.pickFiles(
+      result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['epub'],
         withData: false,
       );
-
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        final filePath = file.path;
-        if (filePath != null) {
-          state = state.copyWith(filePath: filePath);
-          final repository = ref.read(epubRepositoryProvider);
-          final bookModel = await repository.parseEpub(filePath, file.name);
-          state = state.copyWith(selectedBook: bookModel);
-        }
-      }
     } catch (_) {
-      // Swallow cancellation; unexpected errors leave state reset (no book selected).
+      // The picker itself failed to open — nothing meaningful to report.
+      return;
     }
+
+    if (result == null || result.files.isEmpty) return; // user cancelled
+
+    final file = result.files.first;
+    final filePath = file.path;
+    if (filePath == null) return;
+
+    await _parseIntoState(filePath, file.name);
   }
 
   /// Opens an EPUB directly from a file-system path received from the OS
   /// "Open With" handler, without showing the file picker.
+  ///
+  /// Unlike [selectEpub], this also extracts images straight away: the user
+  /// already expressed intent by handing the file to this app, so making them
+  /// tap Extract Images again is pure friction.
   Future<void> openFromPath(String filePath) async {
-    try {
-      await _deleteCachedIfTemporary(state.filePath);
+    await _deleteCachedIfTemporary(state.filePath);
 
-      state = const EpubState(); // full reset
+    state = const EpubState(); // full reset
 
-      state = state.copyWith(filePath: filePath);
-      final repository = ref.read(epubRepositoryProvider);
-      final bookModel = await repository.parseEpub(
-        filePath,
-        path_pkg.basename(filePath),
-      );
-      state = state.copyWith(selectedBook: bookModel);
-    } catch (_) {
-      state = const EpubState();
-    }
+    await _parseIntoState(filePath, path_pkg.basename(filePath));
+
+    // extractImages() no-ops when the parse above failed and left no book.
+    await extractImages();
   }
 
   /// Extracts images from the currently selected EPUB.
@@ -177,6 +173,27 @@ class EpubNotifier extends Notifier<EpubState> {
   // ---------------------------------------------------------------------------
   // Internal helpers
   // ---------------------------------------------------------------------------
+
+  /// Parses [filePath] into state, keeping [fileName] as the title fallback.
+  ///
+  /// On failure the error is surfaced as an [ExtractionResult.failure] rather
+  /// than silently resetting state — a bare reset is indistinguishable from
+  /// "nothing happened", which hides genuinely unreadable EPUBs (for example
+  /// the ones epub_parser rejects for declaring a version other than 2.0/3.0).
+  Future<void> _parseIntoState(String filePath, String fileName) async {
+    try {
+      state = state.copyWith(filePath: filePath);
+      final repository = ref.read(epubRepositoryProvider);
+      final bookModel = await repository.parseEpub(filePath, fileName);
+      state = state.copyWith(selectedBook: bookModel);
+    } catch (e) {
+      state = EpubState(
+        extraction: ExtractionResult.failure(
+          message: 'Failed to open "$fileName": $e',
+        ),
+      );
+    }
+  }
 
   /// Deletes a file if it lives inside the file_picker cache directory,
   /// i.e. it was a temporary copy made by file_picker on Android.

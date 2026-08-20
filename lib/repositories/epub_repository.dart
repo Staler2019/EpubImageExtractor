@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/book_model.dart';
 import '../models/extraction_result.dart';
+import '../utils/epub_metadata.dart';
 import '../utils/file_saver.dart';
 
 /// Repository for handling EPUB file operations
@@ -19,8 +20,9 @@ class EpubRepository {
     try {
       final bytes = await File(filePath).readAsBytes();
       final epubBook = await epub.EpubReader.readBook(bytes);
-      final title = epubBook.Title ?? path.basenameWithoutExtension(fileName);
-      final author = epubBook.Author;
+      final title = normalizeMetadata(epubBook.Title) ??
+          path.basenameWithoutExtension(fileName);
+      final author = normalizeMetadata(epubBook.Author);
 
       return BookModel(
         title: title,
@@ -39,25 +41,37 @@ class EpubRepository {
       final bytes = await File(filePath).readAsBytes();
       final parsedEpub = await epub.EpubReader.readBook(bytes);
 
-      final title = parsedEpub.Title ?? 'Unknown';
+      final title = normalizeMetadata(parsedEpub.Title) ?? 'Unknown';
 
       // Extract images
       final images = <BookImage>[];
 
-      if (parsedEpub.Content?.Images != null) {
-        parsedEpub.Content!.Images!.forEach((key, value) {
-          final name = key.split('/').last;
-          final mimeType = _getMimeType(name);
-          final imageData = Uint8List.fromList(value.Content!);
+      final content = parsedEpub.Content;
+      final classifiedImages = content?.Images;
 
-          images.add(BookImage(
-            id: key,
-            name: name,
-            mimeType: mimeType,
-            data: imageData,
-          ));
+      if (classifiedImages != null) {
+        classifiedImages.forEach((key, value) {
+          final imageContent = value.Content;
+          if (imageContent == null) return;
+          images.add(_toBookImage(key, imageContent));
         });
       }
+
+      // epub_parser only routes gif/jpeg/png/svg into Content.Images; anything
+      // else (notably image/webp) is classified as OTHER and only reachable via
+      // Content.AllFiles. Those bytes are already read by readContent(), so
+      // picking them up here costs no extra I/O.
+      content?.AllFiles?.forEach((key, value) {
+        if (classifiedImages?.containsKey(key) ?? false) return;
+        if (value is! epub.EpubByteContentFile) return; // skips html/css/xml
+        if (!_unclassifiedImageExtensions
+            .contains(path.extension(key).toLowerCase())) {
+          return;
+        }
+        final imageContent = value.Content;
+        if (imageContent == null) return;
+        images.add(_toBookImage(key, imageContent));
+      });
 
       return ExtractionResult.success(
         images: images,
@@ -148,10 +162,21 @@ class EpubRepository {
     return imagePath;
   }
 
+  /// Builds a [BookImage] from an EPUB manifest [href] and its raw bytes.
+  BookImage _toBookImage(String href, List<int> bytes) {
+    final name = href.split('/').last;
+    return BookImage(
+      id: href,
+      name: name,
+      mimeType: _getMimeType(name),
+      data: Uint8List.fromList(bytes),
+    );
+  }
+
   /// Determines the MIME type based on the file extension
   String _getMimeType(String fileName) {
     final extension = path.extension(fileName).toLowerCase();
-    
+
     switch (extension) {
       case '.jpg':
       case '.jpeg':
@@ -164,8 +189,31 @@ class EpubRepository {
         return 'image/svg+xml';
       case '.webp':
         return 'image/webp';
+      case '.bmp':
+        return 'image/bmp';
+      case '.avif':
+        return 'image/avif';
+      case '.jxl':
+        return 'image/jxl';
+      case '.tif':
+      case '.tiff':
+        return 'image/tiff';
       default:
         return 'application/octet-stream';
     }
   }
 }
+
+/// Image extensions that epub_parser does not classify as images.
+///
+/// Flutter decodes webp and bmp natively; avif, jxl and tiff are extracted and
+/// saved byte-for-byte but fall back to ImageGrid's broken-image placeholder in
+/// the preview grid, which is still better than dropping them entirely.
+const _unclassifiedImageExtensions = <String>{
+  '.webp',
+  '.bmp',
+  '.avif',
+  '.jxl',
+  '.tif',
+  '.tiff',
+};
