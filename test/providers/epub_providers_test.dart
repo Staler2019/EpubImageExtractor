@@ -259,8 +259,11 @@ void main() {
       await seeded.read(epubProvider.notifier).openFromPath('/new.epub');
 
       final state = seeded.read(epubProvider);
-      expect(state.extraction, isNull);
       expect(state.selectedBook?.filePath, '/new.epub');
+      // The seeded in-progress result must not leak through; what remains is
+      // the fresh auto-extraction for the newly opened file.
+      expect(state.extraction?.isInProgress, isFalse);
+      expect(state.extraction?.isSuccess, isTrue);
     });
 
     test('surfaces a failure message when parse throws', () async {
@@ -273,6 +276,25 @@ void main() {
       // A silent reset looks identical to "nothing happened" to the user.
       expect(state.extraction?.isFailure, isTrue);
       expect(state.extraction?.message, contains('bad.epub'));
+    });
+
+    test('extracts images automatically after a successful parse', () async {
+      // Files arriving via the OS "Open With" handler should be ready to view
+      // without a second tap on Extract Images.
+      await container.read(epubProvider.notifier).openFromPath('/some/path.epub');
+
+      final state = container.read(epubProvider);
+      expect(state.extraction?.isSuccess, isTrue);
+      expect(state.extraction?.images, isNotEmpty);
+    });
+
+    test('does not extract when parse fails', () async {
+      testRepository.failParse = true;
+      await container.read(epubProvider.notifier).openFromPath('/bad.epub');
+
+      final state = container.read(epubProvider);
+      expect(state.extraction?.isFailure, isTrue);
+      expect(state.extraction?.images, isNull);
     });
 
     test('deletes previous file if it was in the temp directory', () async {
@@ -348,6 +370,7 @@ void main() {
       final state = container.read(epubProvider);
       expect(state.selectedBook?.title, 'Test Book');
       expect(state.filePath, '/picked.epub');
+      // In-app picking stays manual — only the OS "Open With" path auto-extracts.
       expect(state.extraction, isNull);
     });
 

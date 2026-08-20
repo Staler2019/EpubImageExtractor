@@ -96,12 +96,19 @@ class EpubNotifier extends Notifier<EpubState> {
 
   /// Opens an EPUB directly from a file-system path received from the OS
   /// "Open With" handler, without showing the file picker.
+  ///
+  /// Unlike [selectEpub], this also extracts images straight away: the user
+  /// already expressed intent by handing the file to this app, so making them
+  /// tap Extract Images again is pure friction.
   Future<void> openFromPath(String filePath) async {
     await _deleteCachedIfTemporary(state.filePath);
 
     state = const EpubState(); // full reset
 
     await _parseIntoState(filePath, path_pkg.basename(filePath));
+
+    // extractImages() no-ops when the parse above failed and left no book.
+    await extractImages();
   }
 
   /// Extracts images from the currently selected EPUB.
