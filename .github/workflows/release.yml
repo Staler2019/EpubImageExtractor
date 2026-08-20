@@ -51,6 +51,15 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
+          # Pinned: `channel: stable` alone lets a new Flutter release change
+          # the toolchain requirements without any commit here — that is how
+          # the Gradle 8.14 minimum silently broke the release build.
+          #
+          # 3.44.9 is the version this repo's Android toolchain (Gradle 8.14.3,
+          # AGP 8.7.3, Kotlin 2.1.0) is verified against by a real
+          # `flutter build apk --release`. Moving to 3.47.x needs AGP >= 8.11.1
+          # and Kotlin >= 2.2.20 first — 3.44.9 already warns about both.
+          flutter-version: 3.44.9
           channel: stable
           cache: true
 
