@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -103,6 +104,33 @@ final _sampleImage = BookImage(
   mimeType: 'image/jpeg',
   data: Uint8List.fromList([1, 2, 3]),
 );
+
+
+/// Fake [FilePicker] platform so `selectEpub` can be driven from tests.
+/// Returns [result] from `pickFiles`; null simulates the user cancelling.
+class _FakeFilePicker extends FilePicker {
+  _FakeFilePicker({this.result});
+
+  final FilePickerResult? result;
+
+  @override
+  Future<FilePickerResult?> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    bool allowCompression = true,
+    int compressionQuality = 30,
+    bool allowMultiple = false,
+    bool withData = false,
+    bool withReadStream = false,
+    bool lockParentWindow = false,
+    bool readSequential = false,
+  }) async {
+    return result;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -235,13 +263,16 @@ void main() {
       expect(state.selectedBook?.filePath, '/new.epub');
     });
 
-    test('leaves state fully reset when parse throws', () async {
+    test('surfaces a failure message when parse throws', () async {
       testRepository.failParse = true;
       await container.read(epubProvider.notifier).openFromPath('/bad.epub');
 
       final state = container.read(epubProvider);
       expect(state.selectedBook, isNull);
       expect(state.filePath, isNull);
+      // A silent reset looks identical to "nothing happened" to the user.
+      expect(state.extraction?.isFailure, isTrue);
+      expect(state.extraction?.message, contains('bad.epub'));
     });
 
     test('deletes previous file if it was in the temp directory', () async {
@@ -297,6 +328,54 @@ void main() {
         seeded.read(epubProvider.notifier).openFromPath('/new.epub'),
         completes,
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // EpubNotifier.selectEpub
+  // -------------------------------------------------------------------------
+
+  group('EpubNotifier.selectEpub', () {
+    test('populates selectedBook when a file is picked', () async {
+      FilePicker.platform = _FakeFilePicker(
+        result: FilePickerResult([
+          PlatformFile(name: 'picked.epub', size: 1, path: '/picked.epub'),
+        ]),
+      );
+
+      await container.read(epubProvider.notifier).selectEpub();
+
+      final state = container.read(epubProvider);
+      expect(state.selectedBook?.title, 'Test Book');
+      expect(state.filePath, '/picked.epub');
+      expect(state.extraction, isNull);
+    });
+
+    test('stays silent when the user cancels the picker', () async {
+      FilePicker.platform = _FakeFilePicker(result: null);
+
+      await container.read(epubProvider.notifier).selectEpub();
+
+      final state = container.read(epubProvider);
+      expect(state.selectedBook, isNull);
+      // Cancelling is not an error — no red failure card should appear.
+      expect(state.extraction, isNull);
+    });
+
+    test('surfaces a failure message when parse throws', () async {
+      FilePicker.platform = _FakeFilePicker(
+        result: FilePickerResult([
+          PlatformFile(name: 'bad.epub', size: 1, path: '/bad.epub'),
+        ]),
+      );
+      testRepository.failParse = true;
+
+      await container.read(epubProvider.notifier).selectEpub();
+
+      final state = container.read(epubProvider);
+      expect(state.selectedBook, isNull);
+      expect(state.extraction?.isFailure, isTrue);
+      expect(state.extraction?.message, contains('bad.epub'));
     });
   });
 
