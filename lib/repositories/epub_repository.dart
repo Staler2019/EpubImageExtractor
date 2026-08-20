@@ -15,14 +15,17 @@ class EpubRepository {
   const EpubRepository();
 
   /// Parses an EPUB from a file path and extracts its metadata.
+  ///
+  /// Uses [epub.EpubReader.openBook] rather than `readBook()` — see
+  /// [extractImages] for why. Only the schema is needed here anyway.
   /// Bytes are read transiently and eligible for GC after the call returns.
   Future<BookModel> parseEpub(String filePath, String fileName) async {
     try {
       final bytes = await File(filePath).readAsBytes();
-      final epubBook = await epub.EpubReader.readBook(bytes);
-      final title = normalizeMetadata(epubBook.Title) ??
+      final bookRef = await epub.EpubReader.openBook(bytes);
+      final title = normalizeMetadata(bookRef.Title) ??
           path.basenameWithoutExtension(fileName);
-      final author = normalizeMetadata(epubBook.Author);
+      final author = normalizeMetadata(bookRef.Author);
 
       return BookModel(
         title: title,
@@ -35,43 +38,54 @@ class EpubRepository {
   }
 
   /// Extracts images from an EPUB file at [filePath].
+  ///
+  /// Deliberately uses [epub.EpubReader.openBook] instead of `readBook()`.
+  /// `readBook()` always resolves the cover image and the chapter tree, and
+  /// throws when either points at something it cannot classify — so a webp
+  /// cover made the whole book unopenable even though every image was intact.
+  /// `openBook()` reads only the schema and leaves the content as lazy refs,
+  /// so nothing beyond the images this app actually wants is ever touched.
+  ///
   /// Bytes are read transiently and eligible for GC once parsing completes.
   Future<ExtractionResult> extractImages(String filePath) async {
     try {
       final bytes = await File(filePath).readAsBytes();
-      final parsedEpub = await epub.EpubReader.readBook(bytes);
+      final bookRef = await epub.EpubReader.openBook(bytes);
 
-      final title = normalizeMetadata(parsedEpub.Title) ?? 'Unknown';
+      final title = normalizeMetadata(bookRef.Title) ?? 'Unknown';
 
       // Extract images
       final images = <BookImage>[];
 
-      final content = parsedEpub.Content;
+      final content = bookRef.Content;
       final classifiedImages = content?.Images;
 
       if (classifiedImages != null) {
-        classifiedImages.forEach((key, value) {
-          final imageContent = value.Content;
-          if (imageContent == null) return;
-          images.add(_toBookImage(key, imageContent));
-        });
+        for (final entry in classifiedImages.entries) {
+          images.add(
+            _toBookImage(entry.key, await entry.value.readContentAsBytes()),
+          );
+        }
       }
 
       // epub_parser only routes gif/jpeg/png/svg into Content.Images; anything
       // else (notably image/webp) is classified as OTHER and only reachable via
-      // Content.AllFiles. Those bytes are already read by readContent(), so
-      // picking them up here costs no extra I/O.
-      content?.AllFiles?.forEach((key, value) {
-        if (classifiedImages?.containsKey(key) ?? false) return;
-        if (value is! epub.EpubByteContentFile) return; // skips html/css/xml
-        if (!_unclassifiedImageExtensions
-            .contains(path.extension(key).toLowerCase())) {
-          return;
+      // Content.AllFiles. The extension whitelist is what separates images from
+      // html/css/font entries here: EpubByteContentFileRef is not exported by
+      // the package, so it cannot be named in a type test.
+      final allFiles = content?.AllFiles;
+      if (allFiles != null) {
+        for (final entry in allFiles.entries) {
+          if (classifiedImages?.containsKey(entry.key) ?? false) continue;
+          if (!_unclassifiedImageExtensions
+              .contains(path.extension(entry.key).toLowerCase())) {
+            continue;
+          }
+          images.add(
+            _toBookImage(entry.key, await entry.value.readContentAsBytes()),
+          );
         }
-        final imageContent = value.Content;
-        if (imageContent == null) return;
-        images.add(_toBookImage(key, imageContent));
-      });
+      }
 
       return ExtractionResult.success(
         images: images,

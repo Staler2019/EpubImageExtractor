@@ -82,4 +82,27 @@ void main() {
     expect(state.extraction?.isFailure, isTrue);
     expect(state.extraction?.message, contains('future.epub'));
   });
+
+  test('opening an EPUB with a webp cover succeeds', () async {
+    // Reproduces the "Open With" crash: the OPF declares a webp cover, which
+    // epub_parser refuses to resolve, taking the whole open flow down with it.
+    final path = writeEpubFixture(
+      buildEpubBytes(
+        images: {
+          'images/cover.webp': (mediaType: 'image/webp', bytes: tinyWebpBytes),
+          'images/p1.webp': (mediaType: 'image/webp', bytes: tinyWebpBytes),
+        },
+        coverImageHref: 'images/cover.webp',
+      ),
+      addTearDown: addTearDown,
+      fileName: 'epub_from_intent.epub',
+    );
+
+    await container.read(epubProvider.notifier).openFromPath(path);
+
+    final state = container.read(epubProvider);
+    expect(state.extraction?.isFailure, isFalse);
+    expect(state.selectedBook?.title, 'Fixture Book');
+    expect(state.extraction?.images, hasLength(2));
+  });
 }
