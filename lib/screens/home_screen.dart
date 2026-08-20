@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -460,16 +459,17 @@ class _PhoneBody extends HookConsumerWidget {
                 right: padding.right,
                 bottom: padding.bottom,
               ),
-              child: NotificationListener<UserScrollNotification>(
+              child: NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
-                  switch (notification.direction) {
-                    case ScrollDirection.reverse:
-                      isCollapsed.value = true;
-                    case ScrollDirection.forward:
-                      isCollapsed.value = false;
-                    case ScrollDirection.idle:
-                      break;
-                  }
+                  if (notification.depth != 0) return false;
+                  final metrics = notification.metrics;
+                  if (metrics.axis != Axis.vertical) return false;
+                  // Tied to the grid's top boundary, not to drag direction:
+                  // the header expands only once the images are back at the
+                  // very top, and collapses the moment they leave it. Reacting
+                  // to direction instead would pop the header open on any
+                  // upward flick mid-list.
+                  isCollapsed.value = metrics.extentBefore > 0;
                   return false; // let the notification keep bubbling
                 },
                 child: ImageGrid(

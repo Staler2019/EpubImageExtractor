@@ -270,12 +270,43 @@ void main() {
       expect(find.text('Test Book'), findsOneWidget);
     });
 
+    testWidgets('stays collapsed while scrolling up short of the top',
+        (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(40));
+
+      await tester.drag(find.byType(ImageGrid), const Offset(0, -900));
+      await tester.pumpAndSettle();
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+
+      // Scrolling up without reaching the top must NOT expand the header —
+      // the header is tied to the grid's top boundary, not to drag direction.
+      await tester.drag(find.byType(ImageGrid), const Offset(0, 300));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+      expect(find.byKey(HomeScreen.bookInfoExpandedKey), findsNothing);
+    });
+
+    testWidgets('collapses as soon as the grid leaves the top boundary',
+        (tester) async {
+      await _pumpPhoneHome(tester, _stateWithImages(40));
+
+      // A small nudge away from the top is enough — no direction tracking.
+      await tester.drag(find.byType(ImageGrid), const Offset(0, -40));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+    });
+
     testWidgets('expands again when the grid scrolls back up', (tester) async {
       await _pumpPhoneHome(tester, _stateWithImages(20));
 
       await tester.drag(find.byType(ImageGrid), const Offset(0, -300));
       await tester.pumpAndSettle();
-      await tester.drag(find.byType(ImageGrid), const Offset(0, 300));
+      expect(find.byKey(HomeScreen.bookInfoCollapsedKey), findsOneWidget);
+
+      // Overshoot upwards so the grid lands back on its top boundary.
+      await tester.drag(find.byType(ImageGrid), const Offset(0, 900));
       await tester.pumpAndSettle();
 
       expect(find.byKey(HomeScreen.bookInfoExpandedKey), findsOneWidget);
