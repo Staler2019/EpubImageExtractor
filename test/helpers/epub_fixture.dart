@@ -19,14 +19,36 @@ typedef FixtureImage = ({String mediaType, List<int> bytes});
 ///
 /// [images] maps a manifest `href` (relative to the OPF, e.g. `images/a.webp`)
 /// to its declared media type and raw bytes.
+///
+/// Pass [coverImageHref] — which must be a key of [images] — to emit the legacy
+/// `<meta name="cover" content="..."/>` marker in the OPF metadata. That is what
+/// makes `epub_parser` go looking for a cover, so it is required to reproduce
+/// books whose cover is a format the parser does not classify as an image.
 Uint8List buildEpubBytes({
   String version = '3.0',
   String? title = 'Fixture Book',
   List<String> creators = const ['Fixture Author'],
   Map<String, FixtureImage> images = const {},
   Map<String, String> extraManifestEntries = const {},
+  String? coverImageHref,
 }) {
   const opfDir = 'OEBPS';
+
+  if (coverImageHref != null && !images.containsKey(coverImageHref)) {
+    throw ArgumentError.value(
+      coverImageHref,
+      'coverImageHref',
+      'must be one of the keys of `images`',
+    );
+  }
+
+  // Assigned up front so the cover <meta> below can reference an image by href,
+  // even though the manifest entries themselves are written out further down.
+  final imageIds = <String, String>{};
+  var imageIndex = 0;
+  for (final href in images.keys) {
+    imageIds[href] = 'img${imageIndex++}';
+  }
 
   final metadata = StringBuffer()
     ..writeln('    <dc:identifier id="pub-id">urn:uuid:fixture</dc:identifier>')
@@ -37,6 +59,10 @@ Uint8List buildEpubBytes({
   for (final creator in creators) {
     metadata.writeln('    <dc:creator>${_escape(creator)}</dc:creator>');
   }
+  if (coverImageHref != null) {
+    metadata.writeln(
+        '    <meta name="cover" content="${imageIds[coverImageHref]}"/>');
+  }
 
   final manifest = StringBuffer()
     ..writeln('    <item id="nav" href="nav.xhtml" '
@@ -44,9 +70,8 @@ Uint8List buildEpubBytes({
     ..writeln('    <item id="page1" href="page1.xhtml" '
         'media-type="application/xhtml+xml"/>');
 
-  var imageIndex = 0;
   images.forEach((href, image) {
-    manifest.writeln('    <item id="img${imageIndex++}" '
+    manifest.writeln('    <item id="${imageIds[href]}" '
         'href="${_escape(href)}" media-type="${_escape(image.mediaType)}"/>');
   });
 
