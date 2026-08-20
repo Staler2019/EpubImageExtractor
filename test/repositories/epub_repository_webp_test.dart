@@ -97,4 +97,36 @@ void main() {
       expect(byName['b.tiff'], 'image/tiff');
     });
   });
+
+  group('EpubRepository cover handling', () {
+    test('opens an EPUB whose cover is webp', () async {
+      // epub_parser's readBook() always resolves the cover through
+      // Content.Images, and webp never lands there — so a webp cover used to
+      // make the whole book unopenable even though every image was intact.
+      final path = writeEpubFixture(
+        buildEpubBytes(
+          images: {
+            'images/cover.webp': (
+              mediaType: 'image/webp',
+              bytes: tinyWebpBytes,
+            ),
+            'images/p1.webp': (mediaType: 'image/webp', bytes: tinyWebpBytes),
+          },
+          coverImageHref: 'images/cover.webp',
+        ),
+        addTearDown: addTearDown,
+      );
+
+      final book = await repository.parseEpub(path, 'cover.epub');
+      expect(book.title, 'Fixture Book');
+
+      final result = await repository.extractImages(path);
+
+      expect(result.isSuccess, isTrue);
+      expect(
+        result.images!.map((image) => image.name),
+        containsAll(<String>['cover.webp', 'p1.webp']),
+      );
+    });
+  });
 }
