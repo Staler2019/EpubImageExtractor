@@ -62,10 +62,12 @@ void main() {
       );
 
       // At the default 800dp test width the sidebar layout is used, which shows
-      // the raw field values without "Title:" / "Author:" / "File:" prefixes.
+      // the raw field values without "Title:" / "Author:" prefixes.
       expect(find.text('Test Book'), findsOneWidget);
       expect(find.text('Test Author'), findsOneWidget);
-      expect(find.text('/path/to/test.epub'), findsOneWidget);
+      // The file path is a file_picker cache location on Android and carries no
+      // meaning for the user, so it must not be rendered.
+      expect(find.text('/path/to/test.epub'), findsNothing);
 
       // Verify action buttons are available
       expect(find.text('Extract Images'), findsOneWidget);

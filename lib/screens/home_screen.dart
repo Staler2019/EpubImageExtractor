@@ -400,8 +400,6 @@ class HomeScreen extends HookConsumerWidget {
                   'Author: ${epubBook.author}',
                   style: const TextStyle(fontSize: 16),
                 ),
-              const SizedBox(height: 8),
-              Text('File: ${epubBook.filePath}'),
               if (onSelectAnother != null) ...[
                 const SizedBox(height: 8),
                 Align(
@@ -452,13 +450,6 @@ class HomeScreen extends HookConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
-        const SizedBox(height: 8),
-        Text(
-          epubBook.filePath,
-          style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
         if (onSelectAnother != null) ...[
           const SizedBox(height: 12),
           TextButton.icon(
