@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/book_model.dart';
 import '../models/extraction_result.dart';
+import '../utils/epub_metadata.dart';
 import '../utils/file_saver.dart';
 
 /// Repository for handling EPUB file operations
@@ -19,8 +20,9 @@ class EpubRepository {
     try {
       final bytes = await File(filePath).readAsBytes();
       final epubBook = await epub.EpubReader.readBook(bytes);
-      final title = epubBook.Title ?? path.basenameWithoutExtension(fileName);
-      final author = epubBook.Author;
+      final title = normalizeMetadata(epubBook.Title) ??
+          path.basenameWithoutExtension(fileName);
+      final author = normalizeMetadata(epubBook.Author);
 
       return BookModel(
         title: title,
@@ -39,7 +41,7 @@ class EpubRepository {
       final bytes = await File(filePath).readAsBytes();
       final parsedEpub = await epub.EpubReader.readBook(bytes);
 
-      final title = parsedEpub.Title ?? 'Unknown';
+      final title = normalizeMetadata(parsedEpub.Title) ?? 'Unknown';
 
       // Extract images
       final images = <BookImage>[];
